@@ -1,0 +1,34 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GitTree.App.App"
+             xmlns:local="using:GitTree.App"
+             RequestedThemeVariant="Dark">
+    <Application.DataTemplates>
+        <local:ViewLocator />
+    </Application.DataTemplates>
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+        <Style Selector="Window">
+            <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif" />
+            <Setter Property="Background" Value="#1B1E24" />
+        </Style>
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="#14171C" />
+            <Setter Property="BorderBrush" Value="#2C313A" />
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="#101318" />
+        </Style>
+        <Style Selector="Button.toolbar">
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+        </Style>
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="8,10,8,4" />
+            <Setter Property="Foreground" Value="#90A4AE" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+    </Application.Styles>
+</Application>
