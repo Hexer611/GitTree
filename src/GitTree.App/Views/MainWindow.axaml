@@ -35,10 +35,13 @@
                               PlaceholderText="Jump to a recent repo">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:RecentRepoItem">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding Name}" />
-                                    <TextBlock Text="{Binding Branch}" Foreground="{DynamicResource MutedBrush}" FontSize="12" />
-                                </StackPanel>
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" MinHeight="20">
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" LineHeight="18" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Branch}"
+                                               VerticalAlignment="Center" LineHeight="18"
+                                               Foreground="{DynamicResource MutedBrush}"
+                                               FontSize="12" />
+                                </Grid>
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
