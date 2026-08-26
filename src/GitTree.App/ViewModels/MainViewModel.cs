@@ -64,7 +64,7 @@ public partial class MainViewModel : ViewModelBase
 
     private string? _pendingStatus;
 
-    public ObservableCollection<string> RecentRepositories { get; } = [];
+    public ObservableCollection<RecentRepoItem> RecentRepositories { get; } = [];
     public ObservableCollection<CommitNode> Commits { get; } = [];
     public ObservableCollection<FileChange> Unstaged { get; } = [];
     public ObservableCollection<FileChange> Staged { get; } = [];
@@ -92,15 +92,23 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private TagRef? _selectedTag;
     [ObservableProperty] private StashEntry? _selectedStash;
     [ObservableProperty] private WorktreeInfo? _selectedWorktree;
-    [ObservableProperty] private string? _selectedRecent;
+    [ObservableProperty] private RecentRepoItem? _selectedRecent;
 
     public bool HasConflictOperation => IsMerging || IsRebasing || ConflictCount > 0;
 
     public MainViewModel()
     {
         foreach (var path in _settings.Load().RecentRepositories)
-            RecentRepositories.Add(path);
+        {
+            RecentRepositories.Add(new RecentRepoItem
+            {
+                Path = path,
+                Name = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            });
+        }
+
         HasRecents = RecentRepositories.Count > 0;
+        _ = LoadRecentDetailsAsync();
     }
 
     partial void OnErrorMessageChanged(string value) => HasError = !string.IsNullOrWhiteSpace(value);
@@ -149,10 +157,13 @@ public partial class MainViewModel : ViewModelBase
             _ = LoadCommitFileDiffAsync(SelectedCommit, value);
     }
 
-    partial void OnSelectedRecentChanged(string? value)
+    partial void OnSelectedRecentChanged(RecentRepoItem? value)
     {
-        if (!string.IsNullOrWhiteSpace(value) && Directory.Exists(value))
-            _ = OpenRepositoryAsync(value);
+        if (value is null || !Directory.Exists(value.Path))
+            return;
+        if (string.Equals(RepoPath, value.Path, StringComparison.OrdinalIgnoreCase))
+            return;
+        _ = OpenRepositoryAsync(value.Path);
     }
 
     partial void OnSelectedLocalNodeChanged(RefTreeNode? value)
@@ -225,6 +236,14 @@ public partial class MainViewModel : ViewModelBase
         await OpenRepositoryAsync(path);
     }
 
+    [RelayCommand]
+    private Task OpenRecentAsync(RecentRepoItem? item)
+    {
+        if (item is null || string.IsNullOrWhiteSpace(item.Path))
+            return Task.CompletedTask;
+        return OpenRepositoryAsync(item.Path);
+    }
+
     public async Task OpenRepositoryAsync(string path)
     {
         var root = GitRepositoryLocator.FindRoot(path);
@@ -238,8 +257,7 @@ public partial class MainViewModel : ViewModelBase
         _repo?.Dispose();
         _repo = new GitCliRepository(root, new LibGit2HistoryReader());
         _settings.RememberRepository(root);
-        if (!RecentRepositories.Contains(root))
-            RecentRepositories.Insert(0, root);
+        RememberRecent(root);
         HasRecents = RecentRepositories.Count > 0;
         HasRepo = true;
         RepoPath = root;
@@ -252,6 +270,96 @@ public partial class MainViewModel : ViewModelBase
             Dispatcher.UIThread.Post(() => NeedsRefresh = true);
         };
         await RefreshAsync();
+        _ = LoadRecentDetailsAsync();
+    }
+
+    private void RememberRecent(string root)
+    {
+        var existing = RecentRepositories.FirstOrDefault(r =>
+            string.Equals(r.Path, root, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+            RecentRepositories.Remove(existing);
+        else
+        {
+            existing = new RecentRepoItem
+            {
+                Path = root,
+                Name = Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            };
+        }
+
+        RecentRepositories.Insert(0, existing);
+        while (RecentRepositories.Count > 12)
+            RecentRepositories.RemoveAt(RecentRepositories.Count - 1);
+    }
+
+    private async Task LoadRecentDetailsAsync()
+    {
+        var items = RecentRepositories.ToList();
+        await Task.WhenAll(items.Select(FillRecentDetailsAsync));
+    }
+
+    private static async Task FillRecentDetailsAsync(RecentRepoItem item)
+    {
+        if (!Directory.Exists(item.Path))
+        {
+            item.Exists = false;
+            item.Branch = "—";
+            item.LastCommit = "Folder not found";
+            item.LastCommitWhen = "";
+            item.StatusLabel = "Missing";
+            item.IsDirty = false;
+            return;
+        }
+
+        try
+        {
+            var git = new GitCliRunner(item.Path);
+            var branchTask = git.RunAsync(["rev-parse", "--abbrev-ref", "HEAD"], throwOnError: false);
+            var logTask = git.RunAsync(["log", "-1", "--format=%s%n%ci"], throwOnError: false);
+            var statusTask = git.RunAsync(["status", "--porcelain=v1"], throwOnError: false);
+            await Task.WhenAll(branchTask, logTask, statusTask);
+
+            var branch = branchTask.Result.Trim();
+            item.Exists = true;
+            item.Branch = branch is "HEAD" or "" ? "detached" : branch;
+
+            var log = logTask.Result.Replace("\r\n", "\n").Trim();
+            var logLines = log.Split('\n', 2);
+            item.LastCommit = logLines.Length > 0 ? logLines[0].Trim() : "No commits yet";
+            item.LastCommitWhen = logLines.Length > 1 ? FormatRelative(logLines[1].Trim()) : "";
+
+            var dirty = statusTask.Result
+                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                .Length;
+            item.IsDirty = dirty > 0;
+            item.StatusLabel = dirty == 0 ? "Clean" : dirty == 1 ? "1 change" : $"{dirty} changes";
+        }
+        catch
+        {
+            item.Branch = "—";
+            item.LastCommit = "Could not read Git status";
+            item.LastCommitWhen = "";
+            item.StatusLabel = "Unavailable";
+            item.IsDirty = false;
+        }
+    }
+
+    private static string FormatRelative(string isoDate)
+    {
+        if (!DateTimeOffset.TryParse(isoDate, out var when))
+            return isoDate;
+
+        var delta = DateTimeOffset.Now - when;
+        if (delta.TotalMinutes < 1)
+            return "just now";
+        if (delta.TotalHours < 1)
+            return $"{(int)delta.TotalMinutes}m ago";
+        if (delta.TotalDays < 1)
+            return $"{(int)delta.TotalHours}h ago";
+        if (delta.TotalDays < 14)
+            return $"{(int)delta.TotalDays}d ago";
+        return when.ToLocalTime().ToString("MMM dd, yyyy");
     }
 
     [RelayCommand]
