@@ -53,6 +53,7 @@ public sealed class RepositorySnapshot
     public required IReadOnlyList<TagRef> Tags { get; init; }
     public required IReadOnlyList<RemoteInfo> Remotes { get; init; }
     public required IReadOnlyList<StashEntry> Stashes { get; init; }
+    public required IReadOnlyList<WorktreeInfo> Worktrees { get; init; }
 }
 
 public enum DiffKind
@@ -96,6 +97,9 @@ public interface IGitRepository : IDisposable
     Task StashSaveAsync(string? message = null, CancellationToken cancellationToken = default);
     Task StashApplyAsync(int index, CancellationToken cancellationToken = default);
     Task StashDropAsync(int index, CancellationToken cancellationToken = default);
+
+    Task ImportChangesFromWorktreeAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default);
+    Task RemoveWorktreeAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default);
 
     Task MergeAsync(string branch, CancellationToken cancellationToken = default);
     Task RebaseAsync(string onto, CancellationToken cancellationToken = default);

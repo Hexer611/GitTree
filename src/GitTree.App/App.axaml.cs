@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using GitTree.App.ViewModels;
@@ -10,7 +11,13 @@ public partial class App : Application
 {
     public override void Initialize()
     {
+        Control.RequestBringIntoViewEvent.AddClassHandler<TreeViewItem>(OnTreeViewItemBringIntoView);
         AvaloniaXamlLoader.Load(this);
+    }
+
+    private static void OnTreeViewItemBringIntoView(TreeViewItem item, RequestBringIntoViewEventArgs e)
+    {
+        e.TargetRect = e.TargetRect.WithWidth(0);
     }
 
     public override void OnFrameworkInitializationCompleted()

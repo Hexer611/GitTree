@@ -10,21 +10,22 @@ public sealed class GraphRowControl : Control
     public static readonly StyledProperty<CommitNode?> CommitProperty =
         AvaloniaProperty.Register<GraphRowControl, CommitNode?>(nameof(Commit));
 
-    private static readonly IBrush[] LaneBrushes =
+    private static readonly Color[] LaneColors =
     [
-        Brush("#4FC3F7"),
-        Brush("#81C784"),
-        Brush("#FFD54F"),
-        Brush("#FF8A65"),
-        Brush("#CE93D8"),
-        Brush("#4DB6AC"),
-        Brush("#F06292"),
-        Brush("#90CAF9")
+        Color.Parse("#3DDC97"),
+        Color.Parse("#5B8DEF"),
+        Color.Parse("#C084FC"),
+        Color.Parse("#F5C542"),
+        Color.Parse("#FF8A65"),
+        Color.Parse("#2EE6D6"),
+        Color.Parse("#FF5C7A"),
+        Color.Parse("#8B9CFF")
     ];
 
     static GraphRowControl()
     {
         AffectsRender<GraphRowControl>(CommitProperty);
+        AffectsRender<GraphRowControl>(BoundsProperty);
     }
 
     public CommitNode? Commit
@@ -40,34 +41,37 @@ public sealed class GraphRowControl : Control
         if (commit is null)
             return;
 
-        const double spacing = 14;
-        const double radius = 4.5;
+        const double spacing = 16;
+        var radius = commit.IsMerge ? 5.4 : 4.4;
         var midY = Bounds.Height / 2;
         var bottom = Bounds.Height;
 
+        IBrush Brush(int lane, byte alpha = 255)
+        {
+            var c = LaneColors[Math.Abs(lane) % LaneColors.Length];
+            return new SolidColorBrush(Color.FromArgb(alpha, c.R, c.G, c.B));
+        }
+
         foreach (var lane in commit.PassingLanes)
         {
-            var x = 10 + lane * spacing;
-            var brush = LaneBrushes[lane % LaneBrushes.Length];
-            context.DrawLine(new Pen(brush, 1.6), new Point(x, 0), new Point(x, bottom));
+            var x = 12 + lane * spacing;
+            context.DrawLine(new Pen(Brush(lane, 70), 4) { LineCap = PenLineCap.Round }, new Point(x, 0), new Point(x, bottom));
+            context.DrawLine(new Pen(Brush(lane), 1.8) { LineCap = PenLineCap.Round }, new Point(x, 0), new Point(x, bottom));
         }
 
         foreach (var edge in commit.Edges)
         {
-            var x0 = 10 + edge.FromLane * spacing;
-            var x1 = 10 + edge.ToLane * spacing;
-            var brush = LaneBrushes[Math.Abs(edge.ColorIndex) % LaneBrushes.Length];
-            var pen = new Pen(brush, 1.6);
-            if (edge.FromLane == edge.ToLane)
-                context.DrawLine(pen, new Point(x0, midY), new Point(x1, bottom));
-            else
-                context.DrawLine(pen, new Point(x0, midY), new Point(x1, bottom));
+            var x0 = 12 + edge.FromLane * spacing;
+            var x1 = 12 + edge.ToLane * spacing;
+            var penSoft = new Pen(Brush(edge.ColorIndex, 80), 3.4) { LineCap = PenLineCap.Round };
+            var pen = new Pen(Brush(edge.ColorIndex), 1.8) { LineCap = PenLineCap.Round };
+            context.DrawLine(penSoft, new Point(x0, midY), new Point(x1, bottom));
+            context.DrawLine(pen, new Point(x0, midY), new Point(x1, bottom));
         }
 
-        var cx = 10 + commit.Lane * spacing;
-        var fill = LaneBrushes[commit.Lane % LaneBrushes.Length];
-        context.DrawEllipse(fill, new Pen(Brushes.White, 1.2), new Point(cx, midY), radius, radius);
+        var cx = 12 + commit.Lane * spacing;
+        var fill = Brush(commit.Lane);
+        context.DrawEllipse(new SolidColorBrush(Color.FromArgb(55, 61, 220, 151)), null, new Point(cx, midY), radius + 4, radius + 4);
+        context.DrawEllipse(fill, new Pen(new SolidColorBrush(Color.FromArgb(230, 12, 16, 22)), 1.4), new Point(cx, midY), radius, radius);
     }
-
-    private static IBrush Brush(string hex) => new SolidColorBrush(Color.Parse(hex));
 }

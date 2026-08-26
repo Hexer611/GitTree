@@ -25,11 +25,13 @@ public sealed class GitCliRepository : IGitRepository
         var tagsTask = _git.RunAsync(["for-each-ref", "--format=%(refname:short)%1f%(objectname)", "refs/tags"], throwOnError: false, cancellationToken: cancellationToken);
         var remotesTask = _git.RunAsync(["remote", "-v"], throwOnError: false, cancellationToken: cancellationToken);
         var stashTask = _git.RunAsync(["stash", "list", "--format=%gd%1f%H%1f%s"], throwOnError: false, cancellationToken: cancellationToken);
-        var mergeHead = File.Exists(Path.Combine(WorkingDirectory, ".git", "MERGE_HEAD"));
-        var rebase = Directory.Exists(Path.Combine(WorkingDirectory, ".git", "rebase-merge"))
-                     || Directory.Exists(Path.Combine(WorkingDirectory, ".git", "rebase-apply"));
+        var worktreesTask = _git.RunAsync(["worktree", "list", "--porcelain"], throwOnError: false, cancellationToken: cancellationToken);
+        var gitDir = GitDir.Resolve(WorkingDirectory);
+        var mergeHead = File.Exists(Path.Combine(gitDir, "MERGE_HEAD"));
+        var rebase = Directory.Exists(Path.Combine(gitDir, "rebase-merge"))
+                     || Directory.Exists(Path.Combine(gitDir, "rebase-apply"));
 
-        await Task.WhenAll(statusTask, headTask, branchTask, branchesTask, tagsTask, remotesTask, stashTask);
+        await Task.WhenAll(statusTask, headTask, branchTask, branchesTask, tagsTask, remotesTask, stashTask, worktreesTask);
 
         var statusText = statusTask.Result;
         var changes = StatusPorcelainParser.Parse(statusText);
@@ -71,7 +73,8 @@ public sealed class GitCliRepository : IGitRepository
             Branches = ParseBranches(branchesTask.Result),
             Tags = ParseTags(tagsTask.Result),
             Remotes = ParseRemotes(remotesTask.Result),
-            Stashes = ParseStashes(stashTask.Result)
+            Stashes = ParseStashes(stashTask.Result),
+            Worktrees = WorktreeListParser.Parse(worktreesTask.Result, WorkingDirectory)
         };
     }
 
@@ -160,6 +163,66 @@ public sealed class GitCliRepository : IGitRepository
 
     public Task StashDropAsync(int index, CancellationToken cancellationToken = default)
         => _git.RunAsync(["stash", "drop", $"stash@{{{index}}}"], cancellationToken: cancellationToken);
+
+    public async Task ImportChangesFromWorktreeAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default)
+    {
+        var other = Path.GetFullPath(worktree.Path);
+        if (string.Equals(other, WorkingDirectory, StringComparison.OrdinalIgnoreCase))
+            throw new GitException("worktree import", 1, "That worktree is already the current one.");
+
+        GitException? mergeError = null;
+        var mergeRef = worktree.MergeRef;
+        if (!string.IsNullOrWhiteSpace(mergeRef))
+        {
+            try
+            {
+                await MergeAsync(mergeRef, cancellationToken);
+            }
+            catch (GitException ex)
+            {
+                mergeError = ex;
+            }
+        }
+
+        var diff = await _git.RunAsync(
+            ["diff", "HEAD"],
+            throwOnError: false,
+            cancellationToken: cancellationToken,
+            workingDirectory: other);
+        if (!string.IsNullOrWhiteSpace(diff))
+        {
+            await _git.RunWithInputAsync(
+                ["apply", "--3way", "--whitespace=nowarn"],
+                diff,
+                throwOnError: true,
+                cancellationToken);
+        }
+
+        var untracked = await _git.RunAsync(
+            ["ls-files", "-o", "--exclude-standard"],
+            throwOnError: false,
+            cancellationToken: cancellationToken,
+            workingDirectory: other);
+        foreach (var relative in untracked.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var source = Path.GetFullPath(Path.Combine(other, relative));
+            var dest = Path.GetFullPath(Path.Combine(WorkingDirectory, relative));
+            if (!dest.StartsWith(WorkingDirectory, StringComparison.OrdinalIgnoreCase) || !File.Exists(source))
+                continue;
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            File.Copy(source, dest, overwrite: true);
+        }
+
+        if (mergeError is not null)
+            throw mergeError;
+    }
+
+    public Task RemoveWorktreeAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default)
+    {
+        if (!worktree.CanRemove)
+            throw new GitException("worktree remove", 1, "The current or main worktree cannot be removed.");
+        return _git.RunAsync(["worktree", "remove", "--force", worktree.Path], cancellationToken: cancellationToken);
+    }
 
     public Task MergeAsync(string branch, CancellationToken cancellationToken = default)
         => _git.RunAsync(["merge", "--no-edit", branch], cancellationToken: cancellationToken);

@@ -1,0 +1,109 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ControlTheme x:Key="GitTreeScrollThumb" TargetType="Thumb">
+        <Setter Property="Background" Value="#3A4A63" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{TemplateBinding Background}"
+                        CornerRadius="{TemplateBinding CornerRadius}" />
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^:pointerover">
+            <Setter Property="Background" Value="#5A6B86" />
+        </Style>
+        <Style Selector="^:pressed">
+            <Setter Property="Background" Value="#3DDC97" />
+        </Style>
+    </ControlTheme>
+
+    <ControlTheme x:Key="GitTreeScrollPageButton" TargetType="RepeatButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="Transparent" />
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+
+    <ControlTheme x:Key="GitTreeScrollBarTheme" TargetType="ScrollBar">
+        <Setter Property="AllowAutoHide" Value="False" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="#3A4A63" />
+
+        <Style Selector="^:vertical">
+            <Setter Property="Width" Value="12" />
+            <Setter Property="MinWidth" Value="12" />
+            <Setter Property="MaxWidth" Value="12" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="Transparent" Padding="2,6">
+                        <Grid>
+                            <RepeatButton Name="PART_LineUpButton" Height="0" IsVisible="False" Focusable="False" />
+                            <RepeatButton Name="PART_LineDownButton" Height="0" IsVisible="False" Focusable="False" />
+                            <Track Minimum="{TemplateBinding Minimum}"
+                                   Maximum="{TemplateBinding Maximum}"
+                                   Value="{TemplateBinding Value, Mode=TwoWay}"
+                                   ViewportSize="{TemplateBinding ViewportSize}"
+                                   Orientation="Vertical"
+                                   IsDirectionReversed="True">
+                                <Track.DecreaseButton>
+                                    <RepeatButton Name="PART_PageUpButton"
+                                                  Theme="{StaticResource GitTreeScrollPageButton}" />
+                                </Track.DecreaseButton>
+                                <Track.IncreaseButton>
+                                    <RepeatButton Name="PART_PageDownButton"
+                                                  Theme="{StaticResource GitTreeScrollPageButton}" />
+                                </Track.IncreaseButton>
+                                <Thumb Theme="{StaticResource GitTreeScrollThumb}"
+                                       Width="8"
+                                       MinWidth="8"
+                                       MaxWidth="8"
+                                       MinHeight="32"
+                                       HorizontalAlignment="Center" />
+                            </Track>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+
+        <Style Selector="^:horizontal">
+            <Setter Property="Height" Value="12" />
+            <Setter Property="MinHeight" Value="12" />
+            <Setter Property="MaxHeight" Value="12" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="Transparent" Padding="6,2">
+                        <Grid>
+                            <RepeatButton Name="PART_LineUpButton" Width="0" IsVisible="False" Focusable="False" />
+                            <RepeatButton Name="PART_LineDownButton" Width="0" IsVisible="False" Focusable="False" />
+                            <Track Minimum="{TemplateBinding Minimum}"
+                                   Maximum="{TemplateBinding Maximum}"
+                                   Value="{TemplateBinding Value, Mode=TwoWay}"
+                                   ViewportSize="{TemplateBinding ViewportSize}"
+                                   Orientation="Horizontal">
+                                <Track.DecreaseButton>
+                                    <RepeatButton Name="PART_PageUpButton"
+                                                  Theme="{StaticResource GitTreeScrollPageButton}" />
+                                </Track.DecreaseButton>
+                                <Track.IncreaseButton>
+                                    <RepeatButton Name="PART_PageDownButton"
+                                                  Theme="{StaticResource GitTreeScrollPageButton}" />
+                                </Track.IncreaseButton>
+                                <Thumb Theme="{StaticResource GitTreeScrollThumb}"
+                                       Height="8"
+                                       MinHeight="8"
+                                       MaxHeight="8"
+                                       MinWidth="32"
+                                       VerticalAlignment="Center" />
+                            </Track>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+    </ControlTheme>
+</ResourceDictionary>

@@ -41,4 +41,25 @@ public sealed class FileChange
             return WorkTreeStatus.ToString();
         }
     }
+
+    public string BadgeChar
+    {
+        get
+        {
+            if (IsConflict)
+                return "C";
+            if (IndexStatus == FileChangeKind.Untracked)
+                return "?";
+            var kind = IndexStatus != FileChangeKind.Unmodified ? IndexStatus : WorkTreeStatus;
+            return kind switch
+            {
+                FileChangeKind.Added => "A",
+                FileChangeKind.Deleted => "D",
+                FileChangeKind.Renamed => "R",
+                FileChangeKind.Copied => "P",
+                FileChangeKind.Untracked => "?",
+                _ => "M"
+            };
+        }
+    }
 }

@@ -13,14 +13,71 @@ public sealed class DiffLineBackgroundConverter : IValueConverter
     {
         return value switch
         {
-            DiffLineKind.Added => new SolidColorBrush(Color.FromArgb(160, 27, 94, 32)),
-            DiffLineKind.Removed => new SolidColorBrush(Color.FromArgb(150, 183, 28, 28)),
-            DiffLineKind.Hunk => new SolidColorBrush(Color.FromArgb(140, 21, 101, 192)),
-            DiffLineKind.Meta => new SolidColorBrush(Color.FromArgb(140, 55, 71, 79)),
-            _ => Brushes.Transparent
+            DiffLineKind.Added => new SolidColorBrush(Color.Parse("#163A2A")),
+            DiffLineKind.Removed => new SolidColorBrush(Color.Parse("#3A1822")),
+            DiffLineKind.Hunk => new SolidColorBrush(Color.Parse("#121A2C")),
+            DiffLineKind.Meta => new SolidColorBrush(Color.Parse("#141820")),
+            _ => new SolidColorBrush(Color.Parse("#0C1018"))
         };
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
+}
+
+public sealed class DiffLineGutterConverter : IValueConverter
+{
+    public static readonly DiffLineGutterConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        return value switch
+        {
+            DiffLineKind.Added => new SolidColorBrush(Color.Parse("#3DDC97")),
+            DiffLineKind.Removed => new SolidColorBrush(Color.Parse("#FF5C7A")),
+            DiffLineKind.Hunk => new SolidColorBrush(Color.Parse("#5B8DEF")),
+            DiffLineKind.Meta => new SolidColorBrush(Color.Parse("#6B7385")),
+            _ => new SolidColorBrush(Color.Parse("#1E2430"))
+        };
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+public sealed class FileBadgeBrushConverter : IValueConverter
+{
+    public static readonly FileBadgeBrushConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var badge = value as string ?? "M";
+        var part = parameter as string ?? "bg";
+        return part switch
+        {
+            "fg" or "path" => new SolidColorBrush(Foreground(badge)),
+            _ => new SolidColorBrush(Background(badge))
+        };
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+
+    private static Color Foreground(string badge) => badge switch
+    {
+        "A" or "?" => Color.Parse("#7EB0FF"),
+        "D" => Color.Parse("#FF7A90"),
+        "C" => Color.Parse("#FF8A9C"),
+        "R" or "P" => Color.Parse("#8BB0FF"),
+        _ => Color.Parse("#F5C542")
+    };
+
+    private static Color Background(string badge) => badge switch
+    {
+        "A" or "?" => Color.Parse("#335B8DEF"),
+        "D" => Color.Parse("#33FF5C7A"),
+        "C" => Color.Parse("#33FF5C7A"),
+        "R" or "P" => Color.Parse("#285B8DEF"),
+        _ => Color.Parse("#33F5C542")
+    };
 }

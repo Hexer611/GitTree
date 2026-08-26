@@ -62,6 +62,50 @@ public class GitCliRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task ListsWorktreesAndImportsCommitsAndUntracked()
+    {
+        var root = CreateTempRepo();
+        var wt = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + "-wt");
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "base\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("base");
+            Run(root, "branch", "other");
+            Run(root, "worktree", "add", wt, "other");
+
+            await File.WriteAllTextAsync(Path.Combine(wt, "a.txt"), "other\n");
+            Run(wt, "add", "a.txt");
+            Run(wt, "commit", "-m", "other change");
+            await File.WriteAllTextAsync(Path.Combine(wt, "extra.txt"), "extra\n");
+
+            var snap = await repo.RefreshAsync();
+            Assert.True(snap.Worktrees.Count >= 2);
+            Assert.Contains(snap.Worktrees, w => w.IsCurrent);
+            var other = snap.Worktrees.Single(w => !w.IsCurrent);
+            Assert.Equal("other", other.Branch);
+
+            await repo.ImportChangesFromWorktreeAsync(other);
+            var after = await repo.RefreshAsync();
+            Assert.Contains(after.Commits, c => c.Subject == "other change");
+            Assert.True(File.Exists(Path.Combine(root, "extra.txt")));
+            Assert.Equal("other\n", (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n"));
+
+            Assert.True(other.CanRemove);
+            Assert.False(snap.Worktrees.Single(w => w.IsCurrent).CanRemove);
+            await repo.RemoveWorktreeAsync(other);
+            var remaining = await repo.RefreshAsync();
+            Assert.DoesNotContain(remaining.Worktrees, w => string.Equals(w.Path, other.Path, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            TryDelete(wt);
+            TryDelete(root);
+        }
+    }
+
     private static string CreateTempRepo()
     {
         var root = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N"));

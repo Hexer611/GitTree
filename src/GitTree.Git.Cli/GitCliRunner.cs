@@ -13,11 +13,40 @@ public sealed class GitCliRunner
         _workingDirectory = workingDirectory;
     }
 
-    public async Task<string> RunAsync(IReadOnlyList<string> args, bool throwOnError = true, CancellationToken cancellationToken = default)
+    public async Task<string> RunAsync(
+        IReadOnlyList<string> args,
+        bool throwOnError = true,
+        CancellationToken cancellationToken = default,
+        string? workingDirectory = null)
+    {
+        var result = await CliWrap.Cli.Wrap("git")
+            .WithWorkingDirectory(workingDirectory ?? _workingDirectory)
+            .WithArguments(args)
+            .WithValidation(CommandResultValidation.None)
+            .WithEnvironmentVariables(new Dictionary<string, string?>
+            {
+                ["GIT_TERMINAL_PROMPT"] = "0",
+                ["GIT_OPTIONAL_LOCKS"] = "0",
+                ["GIT_PAGER"] = "cat"
+            })
+            .ExecuteBufferedAsync(cancellationToken);
+
+        if (throwOnError && result.ExitCode != 0)
+            throw new GitException(string.Join(' ', args), result.ExitCode, result.StandardError, result.StandardOutput);
+
+        return result.StandardOutput;
+    }
+
+    public async Task<string> RunWithInputAsync(
+        IReadOnlyList<string> args,
+        string stdin,
+        bool throwOnError = true,
+        CancellationToken cancellationToken = default)
     {
         var result = await CliWrap.Cli.Wrap("git")
             .WithWorkingDirectory(_workingDirectory)
             .WithArguments(args)
+            .WithStandardInputPipe(PipeSource.FromString(stdin))
             .WithValidation(CommandResultValidation.None)
             .WithEnvironmentVariables(new Dictionary<string, string?>
             {

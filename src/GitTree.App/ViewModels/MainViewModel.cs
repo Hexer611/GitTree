@@ -16,6 +16,7 @@ public partial class MainViewModel : ViewModelBase
     private IGitRepository? _repo;
     private GitRepositoryWatcher? _watcher;
     private bool _suppressWatch;
+    private int _watchGate;
     private int _refreshSerial;
 
     public Window? Host { get; set; }
@@ -34,6 +35,18 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _conflictFileText = "";
     [ObservableProperty] private string _diffHeader = "Diff";
     [ObservableProperty] private bool _showConflictEditor;
+    [ObservableProperty] private int _unstagedCount;
+    [ObservableProperty] private int _stagedCount;
+    [ObservableProperty] private int _conflictCount;
+    [ObservableProperty] private bool _hasError;
+    [ObservableProperty] private bool _hasRecents;
+    [ObservableProperty] private int _localCount;
+    [ObservableProperty] private int _remoteCount;
+    [ObservableProperty] private int _tagCount;
+    [ObservableProperty] private int _stashCount;
+    [ObservableProperty] private int _worktreeCount;
+    [ObservableProperty] private bool _isShowingCommitFiles;
+    [ObservableProperty] private bool _needsRefresh;
 
     public ObservableCollection<string> RecentRepositories { get; } = [];
     public ObservableCollection<CommitNode> Commits { get; } = [];
@@ -41,10 +54,11 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<FileChange> Staged { get; } = [];
     public ObservableCollection<FileChange> Conflicts { get; } = [];
     public ObservableCollection<FileChange> CommitFiles { get; } = [];
-    public ObservableCollection<BranchRef> LocalBranches { get; } = [];
-    public ObservableCollection<BranchRef> RemoteBranches { get; } = [];
-    public ObservableCollection<TagRef> Tags { get; } = [];
-    public ObservableCollection<StashEntry> Stashes { get; } = [];
+    public ObservableCollection<RefTreeNode> LocalTree { get; } = [];
+    public ObservableCollection<RefTreeNode> RemoteTree { get; } = [];
+    public ObservableCollection<RefTreeNode> TagTree { get; } = [];
+    public ObservableCollection<RefTreeNode> StashTree { get; } = [];
+    public ObservableCollection<RefTreeNode> WorktreeTree { get; } = [];
     public ObservableCollection<DiffLine> DiffLines { get; } = [];
 
     [ObservableProperty] private CommitNode? _selectedCommit;
@@ -52,10 +66,16 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private FileChange? _selectedStaged;
     [ObservableProperty] private FileChange? _selectedConflict;
     [ObservableProperty] private FileChange? _selectedCommitFile;
+    [ObservableProperty] private RefTreeNode? _selectedLocalNode;
+    [ObservableProperty] private RefTreeNode? _selectedRemoteNode;
+    [ObservableProperty] private RefTreeNode? _selectedTagNode;
+    [ObservableProperty] private RefTreeNode? _selectedStashNode;
+    [ObservableProperty] private RefTreeNode? _selectedWorktreeNode;
     [ObservableProperty] private BranchRef? _selectedLocalBranch;
     [ObservableProperty] private BranchRef? _selectedRemoteBranch;
     [ObservableProperty] private TagRef? _selectedTag;
     [ObservableProperty] private StashEntry? _selectedStash;
+    [ObservableProperty] private WorktreeInfo? _selectedWorktree;
     [ObservableProperty] private string? _selectedRecent;
 
     public bool HasConflictOperation => IsMerging || IsRebasing;
@@ -64,17 +84,20 @@ public partial class MainViewModel : ViewModelBase
     {
         foreach (var path in _settings.Load().RecentRepositories)
             RecentRepositories.Add(path);
+        HasRecents = RecentRepositories.Count > 0;
     }
+
+    partial void OnErrorMessageChanged(string value) => HasError = !string.IsNullOrWhiteSpace(value);
 
     partial void OnSelectedUnstagedChanged(FileChange? value)
     {
-        if (value is not null)
+        if (value is not null && !IsShowingCommitFiles)
             _ = LoadWorktreeDiffAsync(value, DiffKind.WorkTree);
     }
 
     partial void OnSelectedStagedChanged(FileChange? value)
     {
-        if (value is not null)
+        if (value is not null && !IsShowingCommitFiles)
             _ = LoadWorktreeDiffAsync(value, DiffKind.Index);
     }
 
@@ -86,8 +109,18 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedCommitChanged(CommitNode? value)
     {
+        IsShowingCommitFiles = value is not null;
         if (value is not null)
             _ = LoadCommitAsync(value);
+        else
+            _ = ShowWorkingTreeDiffAsync();
+    }
+
+    [RelayCommand]
+    private void ShowWorkingTree()
+    {
+        SelectedCommit = null;
+        SelectedCommitFile = null;
     }
 
     partial void OnSelectedCommitFileChanged(FileChange? value)
@@ -100,6 +133,53 @@ public partial class MainViewModel : ViewModelBase
     {
         if (!string.IsNullOrWhiteSpace(value) && Directory.Exists(value))
             _ = OpenRepositoryAsync(value);
+    }
+
+    partial void OnSelectedLocalNodeChanged(RefTreeNode? value)
+    {
+        SelectedLocalBranch = value?.Branch;
+        RevealCommit(value?.Branch?.TipSha);
+    }
+
+    partial void OnSelectedRemoteNodeChanged(RefTreeNode? value)
+    {
+        SelectedRemoteBranch = value?.Branch;
+        RevealCommit(value?.Branch?.TipSha);
+    }
+
+    partial void OnSelectedTagNodeChanged(RefTreeNode? value)
+    {
+        SelectedTag = value?.Tag;
+        RevealCommit(value?.Tag?.TargetSha);
+    }
+
+    partial void OnSelectedStashNodeChanged(RefTreeNode? value) =>
+        SelectedStash = value?.Stash;
+
+    partial void OnSelectedWorktreeNodeChanged(RefTreeNode? value)
+    {
+        SelectedWorktree = value?.Worktree;
+        RevealCommit(value?.Worktree?.HeadSha);
+    }
+
+    public event Action<CommitNode>? CommitRevealed;
+
+    private void RevealCommit(string? sha)
+    {
+        if (string.IsNullOrWhiteSpace(sha) || Commits.Count == 0)
+            return;
+
+        var commit = Commits.FirstOrDefault(c =>
+            c.Sha.StartsWith(sha, StringComparison.OrdinalIgnoreCase)
+            || sha.StartsWith(c.Sha, StringComparison.OrdinalIgnoreCase));
+        if (commit is null)
+        {
+            StatusMessage = "That commit is not in the loaded graph.";
+            return;
+        }
+
+        SelectedCommit = commit;
+        CommitRevealed?.Invoke(commit);
     }
 
     partial void OnIsMergingChanged(bool value) => OnPropertyChanged(nameof(HasConflictOperation));
@@ -139,6 +219,7 @@ public partial class MainViewModel : ViewModelBase
         _settings.RememberRepository(root);
         if (!RecentRepositories.Contains(root))
             RecentRepositories.Insert(0, root);
+        HasRecents = RecentRepositories.Count > 0;
         HasRepo = true;
         RepoPath = root;
         WindowTitle = $"GitTree — {Path.GetFileName(root)}";
@@ -147,7 +228,7 @@ public partial class MainViewModel : ViewModelBase
         {
             if (_suppressWatch)
                 return;
-            Dispatcher.UIThread.Post(() => _ = RefreshAsync());
+            Dispatcher.UIThread.Post(() => NeedsRefresh = true);
         };
         await RefreshAsync();
     }
@@ -168,6 +249,7 @@ public partial class MainViewModel : ViewModelBase
                 return;
 
             ApplySnapshot(snapshot);
+            NeedsRefresh = false;
             StatusMessage = $"{snapshot.CurrentBranch}  •  {snapshot.Changes.Count} changed  •  {snapshot.Commits.Count} commits";
         }
         catch (Exception ex)
@@ -191,10 +273,21 @@ public partial class MainViewModel : ViewModelBase
         Replace(Unstaged, snapshot.Changes.Where(c => c.IsUnstaged && !c.IsConflict));
         Replace(Staged, snapshot.Changes.Where(c => c.IsStaged));
         Replace(Conflicts, snapshot.Changes.Where(c => c.IsConflict));
-        Replace(LocalBranches, snapshot.Branches.Where(b => !b.IsRemote));
-        Replace(RemoteBranches, snapshot.Branches.Where(b => b.IsRemote));
-        Replace(Tags, snapshot.Tags);
-        Replace(Stashes, snapshot.Stashes);
+        var local = snapshot.Branches.Where(b => !b.IsRemote).ToList();
+        var remote = snapshot.Branches.Where(b => b.IsRemote).ToList();
+        ReplaceTree(LocalTree, RefTreeNode.FromBranches(local));
+        ReplaceTree(RemoteTree, RefTreeNode.FromBranches(remote));
+        ReplaceTree(TagTree, RefTreeNode.FromTags(snapshot.Tags));
+        ReplaceTree(StashTree, RefTreeNode.FromStashes(snapshot.Stashes));
+        ReplaceTree(WorktreeTree, RefTreeNode.FromWorktrees(snapshot.Worktrees));
+        LocalCount = local.Count;
+        RemoteCount = remote.Count;
+        TagCount = snapshot.Tags.Count;
+        StashCount = snapshot.Stashes.Count;
+        WorktreeCount = snapshot.Worktrees.Count;
+        UnstagedCount = Unstaged.Count;
+        StagedCount = Staged.Count;
+        ConflictCount = Conflicts.Count;
     }
 
     [RelayCommand]
@@ -267,8 +360,18 @@ public partial class MainViewModel : ViewModelBase
     private Task DeleteLocalBranchAsync()
     {
         if (SelectedLocalBranch is null)
+        {
+            ErrorMessage = "Select a local branch first.";
             return Task.CompletedTask;
-        return MutateAsync(r => r.DeleteBranchAsync(SelectedLocalBranch.Name));
+        }
+
+        if (SelectedLocalBranch.IsCurrent)
+        {
+            ErrorMessage = "Switch off this branch before deleting it.";
+            return Task.CompletedTask;
+        }
+
+        return MutateAsync(r => r.DeleteBranchAsync(SelectedLocalBranch.Name, force: true));
     }
 
     [RelayCommand]
@@ -344,6 +447,44 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task SwitchWorktreeAsync()
+    {
+        if (SelectedWorktree is null || SelectedWorktree.IsCurrent)
+            return;
+        await OpenRepositoryAsync(SelectedWorktree.Path);
+    }
+
+    [RelayCommand]
+    private Task ImportWorktreeChangesAsync()
+    {
+        if (SelectedWorktree is null || SelectedWorktree.IsCurrent)
+        {
+            ErrorMessage = "Select another worktree to bring changes from.";
+            return Task.CompletedTask;
+        }
+
+        return MutateAsync(r => r.ImportChangesFromWorktreeAsync(SelectedWorktree));
+    }
+
+    [RelayCommand]
+    private Task RemoveWorktreeAsync()
+    {
+        if (SelectedWorktree is null)
+        {
+            ErrorMessage = "Select a worktree first.";
+            return Task.CompletedTask;
+        }
+
+        if (!SelectedWorktree.CanRemove)
+        {
+            ErrorMessage = "The current or main worktree cannot be removed.";
+            return Task.CompletedTask;
+        }
+
+        return MutateAsync(r => r.RemoveWorktreeAsync(SelectedWorktree));
+    }
+
+    [RelayCommand]
     private Task ContinueMergeAsync() => MutateAsync(r => r.ContinueMergeAsync());
 
     [RelayCommand]
@@ -396,7 +537,12 @@ public partial class MainViewModel : ViewModelBase
         DiffHeader = kind == DiffKind.Index ? $"Staged • {file.DisplayPath}" : $"Unstaged • {file.DisplayPath}";
         var text = await _repo.GetDiffAsync(new DiffRequest { Kind = kind, Path = file.Path });
         if (string.IsNullOrWhiteSpace(text) && kind == DiffKind.WorkTree && file.IndexStatus == FileChangeKind.Untracked)
+        {
             text = await _repo.ReadWorkingFileAsync(file.Path);
+            Replace(DiffLines, DiffLineParser.ParseNewFile(text));
+            return;
+        }
+
         Replace(DiffLines, DiffLineParser.Parse(text));
     }
 
@@ -415,11 +561,40 @@ public partial class MainViewModel : ViewModelBase
         if (_repo is null)
             return;
         ShowConflictEditor = false;
-        DiffHeader = $"{commit.ShortSha} • {commit.Subject}";
         var files = await _repo.GetCommitFilesAsync(commit.Sha);
         Replace(CommitFiles, files);
-        var text = await _repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.Commit, CommitSha = commit.Sha });
-        Replace(DiffLines, DiffLineParser.Parse(text));
+        SelectedCommitFile = files.Count > 0 ? files[0] : null;
+        if (SelectedCommitFile is null)
+        {
+            DiffHeader = $"{commit.ShortSha} • no file changes";
+            Replace(DiffLines, []);
+        }
+    }
+
+    private async Task ShowWorkingTreeDiffAsync()
+    {
+        Replace(CommitFiles, []);
+        if (SelectedConflict is not null)
+        {
+            await LoadConflictFileAsync(SelectedConflict);
+            return;
+        }
+
+        if (SelectedUnstaged is not null)
+        {
+            await LoadWorktreeDiffAsync(SelectedUnstaged, DiffKind.WorkTree);
+            return;
+        }
+
+        if (SelectedStaged is not null)
+        {
+            await LoadWorktreeDiffAsync(SelectedStaged, DiffKind.Index);
+            return;
+        }
+
+        ShowConflictEditor = false;
+        DiffHeader = "Working tree";
+        Replace(DiffLines, []);
     }
 
     private async Task LoadCommitFileDiffAsync(CommitNode commit, FileChange file)
@@ -437,6 +612,7 @@ public partial class MainViewModel : ViewModelBase
         if (_repo is null)
             return;
         _suppressWatch = true;
+        var gate = ++_watchGate;
         try
         {
             IsBusy = true;
@@ -451,13 +627,27 @@ public partial class MainViewModel : ViewModelBase
         }
         finally
         {
-            _suppressWatch = false;
+            _ = ReleaseWatchSuppressionAsync(gate);
             IsBusy = false;
         }
     }
 
+    private async Task ReleaseWatchSuppressionAsync(int gate)
+    {
+        await Task.Delay(900);
+        if (gate == _watchGate)
+            _suppressWatch = false;
+    }
+
     private static IEnumerable<string> SelectedPaths(FileChange? selected, IEnumerable<FileChange> all)
         => selected is not null ? [selected.Path] : all.Select(f => f.Path).Take(0);
+
+    private static void ReplaceTree(ObservableCollection<RefTreeNode> target, IEnumerable<RefTreeNode> items)
+    {
+        target.Clear();
+        foreach (var item in items)
+            target.Add(item);
+    }
 
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> items)
     {

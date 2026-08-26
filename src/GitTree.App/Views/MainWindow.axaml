@@ -6,261 +6,561 @@
         xmlns:core="using:GitTree.Core"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="860"
+        mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="900"
         x:Class="GitTree.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
         Title="{Binding WindowTitle}"
         Width="1440" Height="900"
-        MinWidth="960" MinHeight="640">
+        MinWidth="1040" MinHeight="680">
 
     <Design.DataContext>
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="Auto,*,Auto">
-        <Border Grid.Row="0" Background="#12151A" BorderBrush="#2C313A" BorderThickness="0,0,0,1" Padding="10,8">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-                <Button Classes="toolbar" Content="Open" Command="{Binding OpenRepositoryCommand}" />
-                <ComboBox Width="260" ItemsSource="{Binding RecentRepositories}"
-                          SelectedItem="{Binding SelectedRecent}"
-                          PlaceholderText="Recent repositories" />
-                <Button Classes="toolbar" Content="Fetch" Command="{Binding FetchCommand}" IsEnabled="{Binding HasRepo}" />
-                <Button Classes="toolbar" Content="Pull" Command="{Binding PullCommand}" IsEnabled="{Binding HasRepo}" />
-                <Button Classes="toolbar" Content="Push" Command="{Binding PushCommand}" IsEnabled="{Binding HasRepo}" />
-                <Button Classes="toolbar" Content="Merge" Command="{Binding MergeSelectedCommand}" IsEnabled="{Binding HasRepo}" />
-                <Button Classes="toolbar" Content="Rebase" Command="{Binding RebaseSelectedCommand}" IsEnabled="{Binding HasRepo}" />
-                <Button Classes="toolbar" Content="Stash" Command="{Binding StashSaveCommand}" IsEnabled="{Binding HasRepo}" />
-                <Button Classes="toolbar" Content="Refresh" Command="{Binding RefreshCommand}" IsEnabled="{Binding HasRepo}" />
-                <TextBox Width="180" PlaceholderText="New branch" Text="{Binding NewBranchName}" Margin="12,0,0,0" />
-                <Button Classes="toolbar" Content="Branch" Command="{Binding CreateBranchCommand}" IsEnabled="{Binding HasRepo}" />
-                <TextBlock Text="{Binding CurrentBranch}" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="#4FC3F7" FontWeight="SemiBold" />
-            </StackPanel>
-        </Border>
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <Border Classes="toolbar" Padding="14,10">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <Border Width="28" Height="28" CornerRadius="8"
+                            Background="#1A3DDC97" BorderBrush="#553DDC97" BorderThickness="1">
+                        <TextBlock Text="⌥" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="#3DDC97" FontWeight="Bold" />
+                    </Border>
+                    <TextBlock Classes="brand" Text="GitTree" VerticalAlignment="Center" />
+                    <Border Width="1" Height="22" Background="#2A354C" Margin="6,0" />
+                    <Button Classes="accent" Content="Open repository" Command="{Binding OpenRepositoryCommand}" />
+                    <ComboBox Width="280" ItemsSource="{Binding RecentRepositories}"
+                              SelectedItem="{Binding SelectedRecent}"
+                              PlaceholderText="Jump to a recent repo" />
+                </StackPanel>
 
-        <Grid Grid.Row="1" ColumnDefinitions="240,4,*,4,380">
-            <Border Background="#16191F" BorderBrush="#2C313A" BorderThickness="0,0,1,0">
-                <ScrollViewer>
-                    <StackPanel>
-                        <TextBlock Classes="section" Text="LOCAL BRANCHES" />
-                        <ListBox ItemsSource="{Binding LocalBranches}" SelectedItem="{Binding SelectedLocalBranch}" Height="180">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="core:BranchRef">
-                                    <DockPanel>
-                                        <TextBlock Text="{Binding Name}" />
-                                        <TextBlock DockPanel.Dock="Right" Text="●" Foreground="#81C784"
-                                                   IsVisible="{Binding IsCurrent}" Margin="8,0,0,0" />
-                                    </DockPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <StackPanel Orientation="Horizontal" Margin="8,4">
-                            <Button Content="Checkout" Command="{Binding CheckoutLocalCommand}" Margin="0,0,6,0" />
-                            <Button Content="Delete" Command="{Binding DeleteLocalBranchCommand}" />
-                        </StackPanel>
-
-                        <TextBlock Classes="section" Text="REMOTES" />
-                        <ListBox ItemsSource="{Binding RemoteBranches}" SelectedItem="{Binding SelectedRemoteBranch}" Height="140">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="core:BranchRef">
-                                    <TextBlock Text="{Binding Name}" Foreground="#90CAF9" />
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <Button Content="Checkout as local" Command="{Binding CheckoutRemoteCommand}" Margin="8,4" HorizontalAlignment="Left" />
-
-                        <TextBlock Classes="section" Text="TAGS" />
-                        <ListBox ItemsSource="{Binding Tags}" SelectedItem="{Binding SelectedTag}" Height="100">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="core:TagRef">
-                                    <TextBlock Text="{Binding Name}" />
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <Button Content="Checkout tag" Command="{Binding CheckoutTagCommand}" Margin="8,4" HorizontalAlignment="Left" />
-
-                        <TextBlock Classes="section" Text="STASH" />
-                        <ListBox ItemsSource="{Binding Stashes}" SelectedItem="{Binding SelectedStash}" Height="120">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="core:StashEntry">
-                                    <TextBlock Text="{Binding Message}" TextTrimming="CharacterEllipsis" />
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <StackPanel Orientation="Horizontal" Margin="8,4">
-                            <Button Content="Apply" Command="{Binding StashApplyCommand}" Margin="0,0,6,0" />
-                            <Button Content="Drop" Command="{Binding StashDropCommand}" />
-                        </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
-            </Border>
-
-            <GridSplitter Grid.Column="1" Width="4" Background="#2C313A" />
-
-            <Grid Grid.Column="2" RowDefinitions="*,4,220">
-                <DockPanel>
-                    <Border DockPanel.Dock="Top" Padding="8,6" Background="#12151A">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Border CornerRadius="999" Padding="10,5" Background="#143DDC97" BorderBrush="#333DDC97" BorderThickness="1"
+                            IsVisible="{Binding HasRepo}">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="COMMIT GRAPH" FontSize="11" FontWeight="SemiBold" Foreground="#90A4AE" VerticalAlignment="Center" />
-                            <Button Content="Checkout commit" Command="{Binding CheckoutCommitCommand}" />
+                            <Ellipse Width="7" Height="7" Fill="#3DDC97" />
+                            <TextBlock Text="{Binding CurrentBranch}" FontWeight="SemiBold" FontSize="12.5" />
                         </StackPanel>
                     </Border>
-                    <ListBox ItemsSource="{Binding Commits}" SelectedItem="{Binding SelectedCommit}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="core:CommitNode">
-                                <Grid ColumnDefinitions="120,72,*,160,150" Height="28">
-                                    <controls:GraphRowControl Commit="{Binding}" />
-                                    <TextBlock Grid.Column="1" Text="{Binding ShortSha}" FontFamily="Consolas, Cascadia Mono, monospace"
-                                               Foreground="#FFD54F" VerticalAlignment="Center" />
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                        <ItemsControl ItemsSource="{Binding Decorations}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <StackPanel Orientation="Horizontal" Spacing="4" />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border Background="#263238" CornerRadius="3" Padding="4,1">
-                                                        <TextBlock Text="{Binding}" FontSize="10" Foreground="#80CBC4" />
+                    <Button Classes="ghost" Content="Refresh" Command="{Binding RefreshCommand}"
+                            IsEnabled="{Binding HasRepo}" IsVisible="{Binding !NeedsRefresh}"
+                            ToolTip.Tip="Reload status, branches, and graph" />
+                    <Button Classes="warn" Command="{Binding RefreshCommand}"
+                            IsVisible="{Binding NeedsRefresh}"
+                            ToolTip.Tip="Files or refs changed on disk. Click to reload this branch.">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Ellipse Width="7" Height="7" Fill="#F5C542" />
+                            <TextBlock Text="Refresh needed" FontWeight="SemiBold" FontSize="12.5" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Classes="ghost" Content="Fetch" Command="{Binding FetchCommand}" IsEnabled="{Binding HasRepo}" />
+                    <Button Classes="ghost" Content="Pull" Command="{Binding PullCommand}" IsEnabled="{Binding HasRepo}" />
+                    <Button Classes="ghost" Content="Push" Command="{Binding PushCommand}" IsEnabled="{Binding HasRepo}" />
+                    <Border Width="1" Height="18" Background="#2A354C" Margin="4,0" />
+                    <Button Classes="ghost" Content="Merge" Command="{Binding MergeSelectedCommand}" IsEnabled="{Binding HasRepo}" />
+                    <Button Classes="ghost" Content="Rebase" Command="{Binding RebaseSelectedCommand}" IsEnabled="{Binding HasRepo}" />
+                    <Button Classes="ghost" Content="Stash" Command="{Binding StashSaveCommand}" IsEnabled="{Binding HasRepo}" />
+                    <Border Width="1" Height="18" Background="#2A354C" Margin="4,0" />
+                    <TextBox Width="168" PlaceholderText="New branch name" Text="{Binding NewBranchName}" />
+                    <Button Classes="ghost" Content="Create branch" Command="{Binding CreateBranchCommand}" IsEnabled="{Binding HasRepo}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <ProgressBar Grid.Row="1" IsIndeterminate="True" IsVisible="{Binding IsBusy}" Opacity="0.9" />
+
+        <Grid Grid.Row="2">
+            <Grid ColumnDefinitions="268,8,*" Margin="12" IsVisible="{Binding HasRepo}">
+                <Border Classes="pane">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="10,8">
+                            <Expander Classes="sidebar" IsExpanded="True">
+                                <Expander.Header>
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Right" Background="#143DDC97" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding LocalCount}" FontSize="11" Foreground="#3DDC97" />
+                                        </Border>
+                                        <TextBlock Classes="section" Text="LOCAL" Margin="0" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Expander.Header>
+                                <StackPanel>
+                                    <TreeView x:Name="LocalBranchesTree"
+                                              ItemsSource="{Binding LocalTree}"
+                                              SelectedItem="{Binding SelectedLocalNode, Mode=TwoWay}"
+                                              ContextRequested="OnLocalTreeContextRequested">
+                                        <TreeView.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Checkout" Command="{Binding CheckoutLocalCommand}" />
+                                                <MenuItem Header="Delete branch" Command="{Binding DeleteLocalBranchCommand}" />
+                                            </ContextMenu>
+                                        </TreeView.ContextMenu>
+                                        <TreeView.ItemTemplate>
+                                            <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
+                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                    <Panel Width="16" Margin="0,0,6,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="▸" Foreground="#6E7A90" IsVisible="{Binding IsFolder}" />
+                                                        <Ellipse Width="7" Height="7" Fill="#3DDC97" HorizontalAlignment="Center"
+                                                                 IsVisible="{Binding IsCurrent}" />
+                                                        <Ellipse Width="7" Height="7" Fill="#3A455C" HorizontalAlignment="Center"
+                                                                 IsVisible="{Binding IsInactiveBranch}" />
+                                                    </Panel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                                                               VerticalAlignment="Center" />
+                                                    <Border Grid.Column="2" Background="#223DDC97" CornerRadius="999" Padding="6,1"
+                                                            IsVisible="{Binding IsCurrent}">
+                                                        <TextBlock Text="HEAD" FontSize="10" Foreground="#3DDC97" />
                                                     </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        <TextBlock Text="{Binding Subject}" TextTrimming="CharacterEllipsis" />
+                                                </Grid>
+                                            </TreeDataTemplate>
+                                        </TreeView.ItemTemplate>
+                                    </TreeView>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,8,0,4">
+                                        <Button Classes="ghost tiny" Content="Checkout" Command="{Binding CheckoutLocalCommand}" />
+                                        <Button Classes="danger tiny" Content="Delete" Command="{Binding DeleteLocalBranchCommand}" />
                                     </StackPanel>
-                                    <TextBlock Grid.Column="3" Text="{Binding AuthorName}" VerticalAlignment="Center" Foreground="#B0BEC5" />
-                                    <TextBlock Grid.Column="4" Text="{Binding AuthorDate, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}"
-                                               VerticalAlignment="Center" Foreground="#78909C" />
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
+                                </StackPanel>
+                            </Expander>
 
-                <GridSplitter Grid.Row="1" Height="4" Background="#2C313A" />
+                            <Expander Classes="sidebar" IsExpanded="True">
+                                <Expander.Header>
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Right" Background="#225B8DEF" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding RemoteCount}" FontSize="11" Foreground="#9BB4FF" />
+                                        </Border>
+                                        <TextBlock Classes="section" Text="REMOTES" Margin="0" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Expander.Header>
+                                <StackPanel>
+                                    <TreeView ItemsSource="{Binding RemoteTree}" SelectedItem="{Binding SelectedRemoteNode, Mode=TwoWay}">
+                                        <TreeView.ItemTemplate>
+                                            <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="▸" Foreground="#6E7A90" Margin="0,0,6,0" IsVisible="{Binding IsFolder}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                                                               Foreground="#9BB4FF" />
+                                                </Grid>
+                                            </TreeDataTemplate>
+                                        </TreeView.ItemTemplate>
+                                    </TreeView>
+                                    <Button Classes="ghost tiny" Content="Checkout as local" Command="{Binding CheckoutRemoteCommand}"
+                                            HorizontalAlignment="Left" Margin="4,8,0,4" />
+                                </StackPanel>
+                            </Expander>
 
-                <Grid Grid.Row="2" ColumnDefinitions="*,*,*" IsVisible="{Binding HasRepo}">
-                    <DockPanel>
-                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6">
-                            <TextBlock Text="UNSTAGED" Classes="section" Margin="0,0,8,0" />
-                            <Button Content="Stage" Command="{Binding StageCommand}" Margin="0,0,6,0" />
-                            <Button Content="Stage all" Command="{Binding StageAllCommand}" Margin="0,0,6,0" />
-                            <Button Content="Discard" Command="{Binding DiscardCommand}" />
+                            <Expander Classes="sidebar" IsExpanded="False">
+                                <Expander.Header>
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Right" Background="#22F5C542" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding TagCount}" FontSize="11" Foreground="#F5C542" />
+                                        </Border>
+                                        <TextBlock Classes="section" Text="TAGS" Margin="0" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Expander.Header>
+                                <StackPanel>
+                                    <TreeView ItemsSource="{Binding TagTree}" SelectedItem="{Binding SelectedTagNode, Mode=TwoWay}">
+                                        <TreeView.ItemTemplate>
+                                            <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="▸" Foreground="#6E7A90" Margin="0,0,6,0" IsVisible="{Binding IsFolder}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                                                               Foreground="#F5C542" />
+                                                </Grid>
+                                            </TreeDataTemplate>
+                                        </TreeView.ItemTemplate>
+                                    </TreeView>
+                                    <Button Classes="ghost tiny" Content="Checkout tag" Command="{Binding CheckoutTagCommand}"
+                                            HorizontalAlignment="Left" Margin="4,8,0,4" />
+                                </StackPanel>
+                            </Expander>
+
+                            <Expander Classes="sidebar" IsExpanded="False">
+                                <Expander.Header>
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Right" Background="#22FFFFFF" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding StashCount}" FontSize="11" Foreground="#8B95A8" />
+                                        </Border>
+                                        <TextBlock Classes="section" Text="STASHES" Margin="0" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Expander.Header>
+                                <StackPanel>
+                                    <TreeView ItemsSource="{Binding StashTree}" SelectedItem="{Binding SelectedStashNode, Mode=TwoWay}">
+                                        <TreeView.ItemTemplate>
+                                            <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
+                                                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" Opacity="0.92" />
+                                            </TreeDataTemplate>
+                                        </TreeView.ItemTemplate>
+                                    </TreeView>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,8,0,4">
+                                        <Button Classes="ghost tiny" Content="Apply" Command="{Binding StashApplyCommand}" />
+                                        <Button Classes="danger tiny" Content="Drop" Command="{Binding StashDropCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Expander>
+
+                            <Expander Classes="sidebar" IsExpanded="True">
+                                <Expander.Header>
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Right" Background="#222EE6D6" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding WorktreeCount}" FontSize="11" Foreground="#2EE6D6" />
+                                        </Border>
+                                        <TextBlock Classes="section" Text="WORKTREES" Margin="0" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Expander.Header>
+                                <StackPanel>
+                                    <TreeView x:Name="WorktreesTree"
+                                              ItemsSource="{Binding WorktreeTree}"
+                                              SelectedItem="{Binding SelectedWorktreeNode, Mode=TwoWay}"
+                                              ContextRequested="OnWorktreeTreeContextRequested">
+                                        <TreeView.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Switch to worktree" Command="{Binding SwitchWorktreeCommand}" />
+                                                <MenuItem Header="Get changes" Command="{Binding ImportWorktreeChangesCommand}" />
+                                                <Separator />
+                                                <MenuItem Header="Delete worktree" Command="{Binding RemoveWorktreeCommand}" />
+                                            </ContextMenu>
+                                        </TreeView.ContextMenu>
+                                        <TreeView.ItemTemplate>
+                                            <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" Foreground="#2EE6D6" />
+                                                    <Border Grid.Column="1" Background="#222EE6D6" CornerRadius="999" Padding="6,1"
+                                                            IsVisible="{Binding IsCurrent}">
+                                                        <TextBlock Text="HERE" FontSize="10" Foreground="#2EE6D6" />
+                                                    </Border>
+                                                </Grid>
+                                            </TreeDataTemplate>
+                                        </TreeView.ItemTemplate>
+                                    </TreeView>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,8,0,4">
+                                        <Button Classes="ghost tiny" Content="Switch" Command="{Binding SwitchWorktreeCommand}" />
+                                        <Button Classes="accent tiny" Content="Get changes" Command="{Binding ImportWorktreeChangesCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Expander>
                         </StackPanel>
-                        <ListBox ItemsSource="{Binding Unstaged}" SelectedItem="{Binding SelectedUnstaged}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="core:FileChange">
-                                    <TextBlock>
-                                        <Run Text="{Binding StatusLabel}" Foreground="#FF8A65" />
-                                        <Run Text="  " />
-                                        <Run Text="{Binding DisplayPath}" />
-                                    </TextBlock>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </DockPanel>
-                    <DockPanel Grid.Column="1">
-                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6">
-                            <TextBlock Text="STAGED" Classes="section" Margin="0,0,8,0" />
-                            <Button Content="Unstage" Command="{Binding UnstageCommand}" Margin="0,0,6,0" />
-                            <Button Content="Unstage all" Command="{Binding UnstageAllCommand}" />
+                    </ScrollViewer>
+                </Border>
+
+                <GridSplitter Grid.Column="1" />
+
+                <Grid Grid.Column="2" RowDefinitions="*,8,236">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" MinWidth="280" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" MinWidth="260" />
+                        </Grid.ColumnDefinitions>
+                    <Border Classes="pane">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Padding="14,10" BorderBrush="#243044" BorderThickness="0,0,0,1">
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                                        <Button Classes="ghost tiny" Content="Working tree"
+                                                Command="{Binding ShowWorkingTreeCommand}" />
+                                        <Button Classes="ghost tiny" Content="Checkout commit"
+                                                Command="{Binding CheckoutCommitCommand}" />
+                                    </StackPanel>
+                                    <TextBlock Classes="section" Text="GRAPH" Margin="0" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </Border>
+                            <ListBox x:Name="CommitList"
+                                     ItemsSource="{Binding Commits}"
+                                     SelectedItem="{Binding SelectedCommit}"
+                                     AutoScrollToSelectedItem="True">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="core:CommitNode">
+                                        <Grid ColumnDefinitions="132,70,*,150,138" Height="36">
+                                            <controls:GraphRowControl Commit="{Binding}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding ShortSha}"
+                                                       FontFamily="Cascadia Mono, Consolas, monospace"
+                                                       Foreground="#8B9CFF" VerticalAlignment="Center" FontSize="12" />
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                <ItemsControl ItemsSource="{Binding Decorations}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Orientation="Horizontal" Spacing="4" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Background="#1A3DDC97" CornerRadius="999" Padding="7,2"
+                                                                    BorderBrush="#333DDC97" BorderThickness="1">
+                                                                <TextBlock Text="{Binding}" FontSize="10" Foreground="#8FF5C6" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="{Binding Subject}" TextTrimming="CharacterEllipsis" FontSize="13" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="3" Text="{Binding AuthorName}" VerticalAlignment="Center"
+                                                       Foreground="#8B95A8" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="4" Text="{Binding AuthorDate, StringFormat='{}{0:MMM dd  HH:mm}'}"
+                                                       VerticalAlignment="Center" Foreground="#667084" FontSize="12"
+                                                       HorizontalAlignment="Right" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+
+                    <GridSplitter Grid.Column="1" />
+
+                    <Grid Grid.Column="2" RowDefinitions="Auto,*">
+                    <Border Classes="pane" Margin="0,0,0,8" Padding="12" IsVisible="{Binding HasConflictOperation}">
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Border Width="8" Height="8" CornerRadius="4" Background="#FF5C7A" />
+                                <TextBlock Text="Conflicts need your attention" FontWeight="SemiBold" />
+                                <Border Background="#33FF5C7A" CornerRadius="999" Padding="7,1">
+                                    <TextBlock Text="{Binding ConflictCount}" FontSize="11" Foreground="#FF5C7A" />
+                                </Border>
+                            </StackPanel>
+                            <WrapPanel>
+                                <Button Classes="accent tiny" Content="Continue merge" Command="{Binding ContinueMergeCommand}"
+                                        IsVisible="{Binding IsMerging}" Margin="0,0,6,6" />
+                                <Button Classes="danger tiny" Content="Abort merge" Command="{Binding AbortMergeCommand}"
+                                        IsVisible="{Binding IsMerging}" Margin="0,0,6,6" />
+                                <Button Classes="accent tiny" Content="Continue rebase" Command="{Binding ContinueRebaseCommand}"
+                                        IsVisible="{Binding IsRebasing}" Margin="0,0,6,6" />
+                                <Button Classes="danger tiny" Content="Abort rebase" Command="{Binding AbortRebaseCommand}"
+                                        IsVisible="{Binding IsRebasing}" Margin="0,0,6,6" />
+                            </WrapPanel>
+                            <ListBox Height="78" ItemsSource="{Binding Conflicts}" SelectedItem="{Binding SelectedConflict}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="core:FileChange">
+                                        <TextBlock Text="{Binding DisplayPath}" Foreground="#FFB4C0" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button Classes="ghost tiny" Content="Take ours" Command="{Binding TakeOursCommand}" />
+                                <Button Classes="ghost tiny" Content="Take theirs" Command="{Binding TakeTheirsCommand}" />
+                                <Button Classes="accent tiny" Content="Mark resolved" Command="{Binding MarkResolvedCommand}" />
+                            </StackPanel>
                         </StackPanel>
-                        <ListBox ItemsSource="{Binding Staged}" SelectedItem="{Binding SelectedStaged}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="core:FileChange">
-                                    <TextBlock>
-                                        <Run Text="{Binding StatusLabel}" Foreground="#81C784" />
-                                        <Run Text="  " />
-                                        <Run Text="{Binding DisplayPath}" />
-                                    </TextBlock>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </DockPanel>
-                    <DockPanel Grid.Column="2">
-                        <TextBlock DockPanel.Dock="Top" Text="COMMIT FILES" Classes="section" />
-                        <ListBox ItemsSource="{Binding CommitFiles}" SelectedItem="{Binding SelectedCommitFile}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="core:FileChange">
-                                    <TextBlock Text="{Binding DisplayPath}" />
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </DockPanel>
+                    </Border>
+
+                    <Border Grid.Row="1" Classes="pane">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Padding="14,10" BorderBrush="#243044" BorderThickness="0,0,0,1">
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Border Width="10" Height="10" CornerRadius="2" Background="#3A1822" BorderBrush="#FF5C7A" BorderThickness="1" />
+                                            <TextBlock Text="removed" FontSize="11" Foreground="#E07A8C" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Border Width="10" Height="10" CornerRadius="2" Background="#163A2A" BorderBrush="#3DDC97" BorderThickness="1" />
+                                            <TextBlock Text="added" FontSize="11" Foreground="#5FBF94" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding DiffHeader}" FontSize="12.5" FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                </DockPanel>
+                            </Border>
+                            <Button DockPanel.Dock="Bottom" Classes="ghost" Content="Save conflict edits"
+                                    Command="{Binding SaveConflictFileCommand}" IsVisible="{Binding ShowConflictEditor}" Margin="10" />
+                            <TextBox IsVisible="{Binding ShowConflictEditor}"
+                                     Text="{Binding ConflictFileText}"
+                                     AcceptsReturn="True"
+                                     FontFamily="Cascadia Mono, Consolas, monospace"
+                                     FontSize="12.5"
+                                     TextWrapping="NoWrap"
+                                     BorderThickness="0"
+                                     CornerRadius="0" />
+                            <ListBox Classes="diff" IsVisible="{Binding !ShowConflictEditor}" ItemsSource="{Binding DiffLines}"
+                                     Background="#0C1018">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="core:DiffLine">
+                                        <controls:DiffLineView Line="{Binding}" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                    </Grid>
+                    </Grid>
+
+                    <GridSplitter Grid.Row="1" />
+
+                    <Grid Grid.Row="2">
+                        <Grid ColumnDefinitions="*,8,*,8,220" IsVisible="{Binding !IsShowingCommitFiles}">
+                            <Border Classes="pane">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="#243044" BorderThickness="0,0,0,1">
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                                                <Button Classes="ghost tiny" Content="Stage" Command="{Binding StageCommand}" />
+                                                <Button Classes="ghost tiny" Content="All" Command="{Binding StageAllCommand}" />
+                                                <Button Classes="danger tiny" Content="Discard" Command="{Binding DiscardCommand}" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Classes="section" Text="UNSTAGED" Margin="0" VerticalAlignment="Center" />
+                                                <Border Background="#22C9A227" CornerRadius="999" Padding="7,1">
+                                                    <TextBlock Text="{Binding UnstagedCount}" FontSize="11" Foreground="#F5C542" />
+                                                </Border>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <ListBox ItemsSource="{Binding Unstaged}" SelectedItem="{Binding SelectedUnstaged}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="core:FileChange">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <Border Width="20" Height="20" CornerRadius="5"
+                                                            Background="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=bg}"
+                                                            BorderBrush="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
+                                                            BorderThickness="1">
+                                                        <TextBlock Text="{Binding BadgeChar}" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Border>
+                                                    <TextBlock Text="{Binding DisplayPath}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                               Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=path}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </DockPanel>
+                            </Border>
+
+                            <GridSplitter Grid.Column="1" />
+
+                            <Border Grid.Column="2" Classes="pane">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="#243044" BorderThickness="0,0,0,1">
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                                                <Button Classes="ghost tiny" Content="Unstage" Command="{Binding UnstageCommand}" />
+                                                <Button Classes="ghost tiny" Content="All" Command="{Binding UnstageAllCommand}" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Classes="section" Text="STAGED" Margin="0" VerticalAlignment="Center" />
+                                                <Border Background="#223DDC97" CornerRadius="999" Padding="7,1">
+                                                    <TextBlock Text="{Binding StagedCount}" FontSize="11" Foreground="#3DDC97" />
+                                                </Border>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <ListBox ItemsSource="{Binding Staged}" SelectedItem="{Binding SelectedStaged}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="core:FileChange">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <Border Width="20" Height="20" CornerRadius="5"
+                                                            Background="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=bg}"
+                                                            BorderBrush="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
+                                                            BorderThickness="1">
+                                                        <TextBlock Text="{Binding BadgeChar}" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Border>
+                                                    <TextBlock Text="{Binding DisplayPath}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                               Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=path}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </DockPanel>
+                            </Border>
+
+                            <GridSplitter Grid.Column="3" />
+
+                            <Border Grid.Column="4" Classes="pane" Padding="12">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Top" Classes="section" Text="COMMIT" Margin="0,0,0,8" />
+                                    <Button DockPanel.Dock="Bottom" Classes="accent" Content="Commit"
+                                            Command="{Binding CommitCommand}" HorizontalAlignment="Stretch" Margin="0,10,0,0" />
+                                    <TextBox AcceptsReturn="True" Text="{Binding CommitMessage}"
+                                             PlaceholderText="Commit message" />
+                                </DockPanel>
+                            </Border>
+                        </Grid>
+
+                        <Border Classes="pane" IsVisible="{Binding IsShowingCommitFiles}">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="#243044" BorderThickness="0,0,0,1">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Classes="section" Text="CHANGED IN COMMIT" Margin="0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding SelectedCommit.ShortSha}" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                   Foreground="#8B9CFF" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding SelectedCommit.Subject}" TextTrimming="CharacterEllipsis"
+                                                   Foreground="#8B95A8" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                                <ListBox ItemsSource="{Binding CommitFiles}" SelectedItem="{Binding SelectedCommitFile}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="core:FileChange">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Border Width="20" Height="20" CornerRadius="5"
+                                                        Background="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=bg}"
+                                                        BorderBrush="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
+                                                        BorderThickness="1">
+                                                    <TextBlock Text="{Binding BadgeChar}" FontSize="11" FontWeight="Bold"
+                                                               Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                                <TextBlock Text="{Binding DisplayPath}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                           Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=path}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
                 </Grid>
             </Grid>
 
-            <GridSplitter Grid.Column="3" Width="4" Background="#2C313A" />
-
-            <Grid Grid.Column="4" RowDefinitions="Auto,Auto,*,Auto,Auto">
-                <Border Background="#1A237E" Padding="8" IsVisible="{Binding HasConflictOperation}">
-                    <StackPanel>
-                        <TextBlock Text="Conflict in progress" FontWeight="Bold" />
-                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,8,0,0">
-                            <Button Content="Continue merge" Command="{Binding ContinueMergeCommand}" IsVisible="{Binding IsMerging}" />
-                            <Button Content="Abort merge" Command="{Binding AbortMergeCommand}" IsVisible="{Binding IsMerging}" />
-                            <Button Content="Continue rebase" Command="{Binding ContinueRebaseCommand}" IsVisible="{Binding IsRebasing}" />
-                            <Button Content="Abort rebase" Command="{Binding AbortRebaseCommand}" IsVisible="{Binding IsRebasing}" />
-                        </StackPanel>
+            <Grid IsVisible="{Binding !HasRepo}">
+                <Grid.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#07090D" Offset="0" />
+                        <GradientStop Color="#0E1A16" Offset="0.55" />
+                        <GradientStop Color="#0B1220" Offset="1" />
+                    </LinearGradientBrush>
+                </Grid.Background>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" MaxWidth="520">
+                    <Border Width="64" Height="64" CornerRadius="18" HorizontalAlignment="Center"
+                            Background="#1A3DDC97" BorderBrush="#553DDC97" BorderThickness="1">
+                        <TextBlock Text="⌥" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#3DDC97" />
+                    </Border>
+                    <TextBlock Text="A calmer way to see Git" FontSize="28" FontWeight="Bold" HorizontalAlignment="Center" />
+                    <TextBlock Text="Open a repository to browse the graph, stage with intent, and keep merge conflicts from taking over the room."
+                               TextWrapping="Wrap" TextAlignment="Center" Foreground="#8B95A8" FontSize="14.5" />
+                    <Button Classes="accent" Content="Open a Git repository" Command="{Binding OpenRepositoryCommand}"
+                            HorizontalAlignment="Center" Margin="0,8,0,0" Padding="18,10" />
+                    <StackPanel IsVisible="{Binding HasRecents}" Spacing="8" Margin="0,10,0,0">
+                        <TextBlock Text="Recent" Classes="section" HorizontalAlignment="Center" />
+                        <ItemsControl ItemsSource="{Binding RecentRepositories}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#121826" CornerRadius="8" Padding="12,8" Margin="0,0,0,6"
+                                            BorderBrush="#243044" BorderThickness="1">
+                                        <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" Foreground="#C5CDDA" FontSize="12.5" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
-                </Border>
-
-                <DockPanel Grid.Row="1" IsVisible="{Binding HasConflictOperation}">
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6" Spacing="6">
-                        <TextBlock Text="CONFLICTS" Classes="section" Margin="0" />
-                        <Button Content="Ours" Command="{Binding TakeOursCommand}" />
-                        <Button Content="Theirs" Command="{Binding TakeTheirsCommand}" />
-                        <Button Content="Resolved" Command="{Binding MarkResolvedCommand}" />
-                    </StackPanel>
-                    <ListBox Height="90" ItemsSource="{Binding Conflicts}" SelectedItem="{Binding SelectedConflict}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="core:FileChange">
-                                <TextBlock Text="{Binding DisplayPath}" Foreground="#EF9A9A" />
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
-
-                <DockPanel Grid.Row="2">
-                    <TextBlock DockPanel.Dock="Top" Text="{Binding DiffHeader}" Classes="section" />
-                    <TextBox IsVisible="{Binding ShowConflictEditor}"
-                             Text="{Binding ConflictFileText}"
-                             AcceptsReturn="True"
-                             FontFamily="Consolas, Cascadia Mono, monospace"
-                             FontSize="12"
-                             TextWrapping="NoWrap" />
-                    <ListBox IsVisible="{Binding !ShowConflictEditor}" ItemsSource="{Binding DiffLines}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="core:DiffLine">
-                                <TextBlock Text="{Binding Text}"
-                                           FontFamily="Consolas, Cascadia Mono, monospace"
-                                           FontSize="12"
-                                           Background="{Binding Kind, Converter={x:Static conv:DiffLineBackgroundConverter.Instance}}" />
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
-
-                <Button Grid.Row="3" Content="Save conflict edits" Command="{Binding SaveConflictFileCommand}"
-                        IsVisible="{Binding ShowConflictEditor}" Margin="8,4" />
-
-                <DockPanel Grid.Row="4" Margin="8">
-                    <TextBlock DockPanel.Dock="Top" Text="COMMIT MESSAGE" Classes="section" Margin="0,0,0,4" />
-                    <Button DockPanel.Dock="Bottom" Content="Commit" Command="{Binding CommitCommand}" Margin="0,8,0,0"
-                            HorizontalAlignment="Stretch" />
-                    <TextBox Height="80" AcceptsReturn="True" Text="{Binding CommitMessage}" PlaceholderText="Commit message" />
-                </DockPanel>
+                </StackPanel>
             </Grid>
         </Grid>
 
-        <Border Grid.Row="2" Background="#101318" Padding="10,6" BorderBrush="#2C313A" BorderThickness="0,1,0,0">
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="{Binding StatusMessage}" Foreground="#90A4AE" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
-                    <TextBlock Text="{Binding ErrorMessage}" Foreground="#EF9A9A" />
-                    <TextBlock Text="{Binding RepoPath}" Foreground="#607D8B" />
+        <Border Grid.Row="3" Background="#080B11" BorderBrush="#243044" BorderThickness="0,1,0,0" Padding="14,8">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Ellipse Width="8" Height="8" Fill="#3DDC97" IsVisible="{Binding !HasError}" />
+                    <Ellipse Width="8" Height="8" Fill="#FF5C7A" IsVisible="{Binding HasError}" />
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="#8B95A8" FontSize="12.5" />
                 </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding ErrorMessage}" Foreground="#FF8A9C" FontSize="12.5"
+                           Margin="18,0" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="2" Text="{Binding RepoPath}" Foreground="#5C6678" FontSize="12" />
             </Grid>
         </Border>
     </Grid>

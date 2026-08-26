@@ -6,29 +6,281 @@
     <Application.DataTemplates>
         <local:ViewLocator />
     </Application.DataTemplates>
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="/Styles/ScrollBars.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <Color x:Key="Bg0">#07090D</Color>
+        <Color x:Key="Bg1">#0C1018</Color>
+        <Color x:Key="Bg2">#121826</Color>
+        <Color x:Key="Bg3">#171F30</Color>
+        <Color x:Key="Line">#243044</Color>
+        <Color x:Key="Text">#E7ECF5</Color>
+        <Color x:Key="Muted">#8B95A8</Color>
+        <Color x:Key="Accent">#3DDC97</Color>
+        <Color x:Key="AccentDim">#1B8F62</Color>
+        <Color x:Key="Danger">#FF5C7A</Color>
+        <SolidColorBrush x:Key="Bg0Brush" Color="{StaticResource Bg0}" />
+        <SolidColorBrush x:Key="Bg1Brush" Color="{StaticResource Bg1}" />
+        <SolidColorBrush x:Key="Bg2Brush" Color="{StaticResource Bg2}" />
+        <SolidColorBrush x:Key="Bg3Brush" Color="{StaticResource Bg3}" />
+        <SolidColorBrush x:Key="LineBrush" Color="{StaticResource Line}" />
+        <SolidColorBrush x:Key="TextBrush" Color="{StaticResource Text}" />
+        <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource Muted}" />
+        <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource Accent}" />
+        <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource Danger}" />
+        <CornerRadius x:Key="R8">8</CornerRadius>
+        <CornerRadius x:Key="R12">12</CornerRadius>
+        </ResourceDictionary>
+    </Application.Resources>
+
     <Application.Styles>
         <FluentTheme />
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
         <Style Selector="Window">
-            <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif" />
-            <Setter Property="Background" Value="#1B1E24" />
+            <Setter Property="FontFamily" Value="Inter, Segoe UI Variable, Segoe UI, sans-serif" />
+            <Setter Property="Background" Value="{StaticResource Bg0Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
         </Style>
-        <Style Selector="ListBox">
-            <Setter Property="Background" Value="#14171C" />
-            <Setter Property="BorderBrush" Value="#2C313A" />
-        </Style>
-        <Style Selector="TextBox">
-            <Setter Property="Background" Value="#101318" />
-        </Style>
-        <Style Selector="Button.toolbar">
-            <Setter Property="Padding" Value="10,6" />
-            <Setter Property="Margin" Value="0,0,6,0" />
-        </Style>
+
         <Style Selector="TextBlock.section">
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="8,10,8,4" />
-            <Setter Property="Foreground" Value="#90A4AE" />
+            <Setter Property="Margin" Value="2,2,2,8" />
+            <Setter Property="Foreground" Value="#6E7A90" />
             <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <Style Selector="TextBlock.brand">
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="16" />
+        </Style>
+
+        <Style Selector="Border.pane">
+            <Setter Property="Background" Value="{StaticResource Bg1Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="ClipToBounds" Value="True" />
+        </Style>
+
+        <Style Selector="Border.toolbar">
+            <Setter Property="Background" Value="#CC0C1018" />
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+
+        <Style Selector="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.14" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.14" />
+                </Transitions>
+            </Setter>
+        </Style>
+
+        <Style Selector="Button.ghost">
+            <Setter Property="Background" Value="#14FFFFFF" />
+            <Setter Property="BorderBrush" Value="#2A354C" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="11,7" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
+        <Style Selector="Button.ghost:pointerover">
+            <Setter Property="Background" Value="#22FFFFFF" />
+            <Setter Property="BorderBrush" Value="#3DDC97" />
+        </Style>
+        <Style Selector="Button.ghost:disabled">
+            <Setter Property="Opacity" Value="0.38" />
+        </Style>
+
+        <Style Selector="Button.accent">
+            <Setter Property="Background" Value="#3DDC97" />
+            <Setter Property="BorderBrush" Value="#6AF0B6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#07110C" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.accent:pointerover">
+            <Setter Property="Background" Value="#63F0B2" />
+        </Style>
+        <Style Selector="Button.accent:disabled">
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
+
+        <Style Selector="Button.warn">
+            <Setter Property="Background" Value="#2AF5C542" />
+            <Setter Property="BorderBrush" Value="#F5C542" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#F8E7A4" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.warn:pointerover">
+            <Setter Property="Background" Value="#44F5C542" />
+        </Style>
+
+        <Style Selector="Button.danger">
+            <Setter Property="Background" Value="#22FF5C7A" />
+            <Setter Property="BorderBrush" Value="#55FF5C7A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#FFD0D8" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="11,7" />
+        </Style>
+        <Style Selector="Button.danger:pointerover">
+            <Setter Property="Background" Value="#44FF5C7A" />
+        </Style>
+
+        <Style Selector="Button.tiny">
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4" />
+        </Style>
+
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Margin" Value="2,1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.12" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="ListBoxItem:pointerover">
+            <Setter Property="Background" Value="#14FFFFFF" />
+        </Style>
+        <Style Selector="ListBoxItem:selected">
+            <Setter Property="Background" Value="#243DDC97" />
+        </Style>
+        <Style Selector="ListBoxItem:selected:pointerover">
+            <Setter Property="Background" Value="#333DDC97" />
+        </Style>
+
+        <Style Selector="ListBox.diff ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBox.diff ListBoxItem:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox.diff ListBoxItem:selected">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox.diff ListBoxItem:selected:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="#0A0E16" />
+            <Setter Property="BorderBrush" Value="#2A354C" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="CaretBrush" Value="#3DDC97" />
+        </Style>
+        <Style Selector="TextBox:focus">
+            <Setter Property="BorderBrush" Value="#3DDC97" />
+        </Style>
+
+        <Style Selector="ComboBox">
+            <Setter Property="Background" Value="#0A0E16" />
+            <Setter Property="BorderBrush" Value="#2A354C" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="MinHeight" Value="34" />
+        </Style>
+
+        <Style Selector="GridSplitter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="MinWidth" Value="8" />
+            <Setter Property="MinHeight" Value="8" />
+        </Style>
+        <Style Selector="GridSplitter:pointerover">
+            <Setter Property="Background" Value="#333DDC97" />
+        </Style>
+
+        <Style Selector="ProgressBar">
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="MinHeight" Value="2" />
+            <Setter Property="Height" Value="2" />
+        </Style>
+
+        <Style Selector="ScrollViewer">
+            <Setter Property="AllowAutoHide" Value="False" />
+        </Style>
+        <Style Selector="ScrollBar">
+            <Setter Property="AllowAutoHide" Value="False" />
+            <Setter Property="Theme" Value="{StaticResource GitTreeScrollBarTheme}" />
+        </Style>
+
+        <Style Selector="Expander.sidebar">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Expander.sidebar:pointerover">
+            <Setter Property="Background" Value="#08FFFFFF" />
+        </Style>
+
+        <Style Selector="TreeView">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0,4,0,2" />
+            <Setter Property="AutoScrollToSelectedItem" Value="False" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+        <Style Selector="TreeViewItem">
+            <Setter Property="IsExpanded" Value="True" />
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="Padding" Value="2,2" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="#243DDC97" />
+        </Style>
+
+        <Style Selector="ContextMenu">
+            <Setter Property="Background" Value="#141B28" />
+            <Setter Property="BorderBrush" Value="#2A354C" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="6" />
+        </Style>
+        <Style Selector="MenuItem">
+            <Setter Property="Foreground" Value="#E7ECF5" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="MenuItem:pointerover">
+            <Setter Property="Background" Value="#243DDC97" />
+        </Style>
+        <Style Selector="Separator">
+            <Setter Property="Background" Value="#2A354C" />
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="6,4" />
         </Style>
     </Application.Styles>
 </Application>
