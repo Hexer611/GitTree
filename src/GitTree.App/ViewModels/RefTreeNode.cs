@@ -17,6 +17,22 @@ public sealed class RefTreeNode
     public bool IsTag => Tag is not null;
     public bool IsStash => Stash is not null;
     public bool IsWorktree => Worktree is not null;
+    public bool HasSyncBadge => Branch is { IsRemote: false } b && (b.Ahead > 0 || b.Behind > 0);
+    public string SyncBadge
+    {
+        get
+        {
+            if (Branch is null)
+                return "";
+            if (Branch.Ahead > 0 && Branch.Behind > 0)
+                return $"↑{Branch.Ahead} ↓{Branch.Behind}";
+            if (Branch.Ahead > 0)
+                return $"↑{Branch.Ahead}";
+            if (Branch.Behind > 0)
+                return $"↓{Branch.Behind}";
+            return "";
+        }
+    }
     public ObservableCollection<RefTreeNode> Children { get; } = [];
 
     public static ObservableCollection<RefTreeNode> FromBranches(IEnumerable<BranchRef> branches)

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -67,5 +68,29 @@ public partial class MainWindow : Window
     {
         if (sender is ListBox list && DataContext is MainViewModel vm)
             vm.SetStagedSelection(list.SelectedItems?.OfType<FileChange>() ?? []);
+    }
+
+    private void OnSelectAllUnstaged(object? sender, RoutedEventArgs e) =>
+        SelectAllFiles("UnstagedList", (vm, files) => vm.SetUnstagedSelection(files));
+
+    private void OnSelectAllStaged(object? sender, RoutedEventArgs e) =>
+        SelectAllFiles("StagedList", (vm, files) => vm.SetStagedSelection(files));
+
+    private void SelectAllFiles(string listName, Action<MainViewModel, IEnumerable<FileChange>> apply)
+    {
+        var list = this.FindControl<ListBox>(listName);
+        if (list is null || DataContext is not MainViewModel vm)
+            return;
+
+        list.SelectAll();
+        var files = list.SelectedItems?.OfType<FileChange>().ToList() ?? [];
+        apply(vm, files);
+        if (files.Count > 0)
+        {
+            if (listName == "UnstagedList")
+                vm.SelectedUnstaged = files[0];
+            else
+                vm.SelectedStaged = files[0];
+        }
     }
 }

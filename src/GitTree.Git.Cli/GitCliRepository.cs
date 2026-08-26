@@ -21,7 +21,7 @@ public sealed class GitCliRepository : IGitRepository
         var statusTask = _git.RunAsync(["status", "--porcelain=v1", "-b", "-uall", "--untracked-files=all"], cancellationToken: cancellationToken);
         var headTask = _git.RunAsync(["rev-parse", "HEAD"], throwOnError: false, cancellationToken: cancellationToken);
         var branchTask = _git.RunAsync(["rev-parse", "--abbrev-ref", "HEAD"], throwOnError: false, cancellationToken: cancellationToken);
-        var branchesTask = _git.RunAsync(["for-each-ref", "--format=%(refname)%1f%(objectname)%1f%(upstream:short)%1f%(HEAD)", "refs/heads", "refs/remotes"], throwOnError: false, cancellationToken: cancellationToken);
+        var branchesTask = _git.RunAsync(["for-each-ref", "--format=%(refname)%1f%(objectname)%1f%(upstream:short)%1f%(HEAD)%1f%(upstream:track)", "refs/heads", "refs/remotes"], throwOnError: false, cancellationToken: cancellationToken);
         var tagsTask = _git.RunAsync(["for-each-ref", "--format=%(refname:short)%1f%(objectname)", "refs/tags"], throwOnError: false, cancellationToken: cancellationToken);
         var remotesTask = _git.RunAsync(["remote", "-v"], throwOnError: false, cancellationToken: cancellationToken);
         var stashTask = _git.RunAsync(["stash", "list", "--format=%gd%1f%H%1f%s"], throwOnError: false, cancellationToken: cancellationToken);
@@ -74,7 +74,8 @@ public sealed class GitCliRepository : IGitRepository
             Tags = ParseTags(tagsTask.Result),
             Remotes = ParseRemotes(remotesTask.Result),
             Stashes = ParseStashes(stashTask.Result),
-            Worktrees = WorktreeListParser.Parse(worktreesTask.Result, WorkingDirectory)
+            Worktrees = WorktreeListParser.Parse(worktreesTask.Result, WorkingDirectory),
+            Sync = SyncStatusParser.ParsePorcelain(statusText)
         };
     }
 
@@ -138,19 +139,30 @@ public sealed class GitCliRepository : IGitRepository
     public Task DeleteBranchAsync(string name, bool force = false, CancellationToken cancellationToken = default)
         => _git.RunAsync(["branch", force ? "-D" : "-d", name], cancellationToken: cancellationToken);
 
-    public Task FetchAsync(string? remote = null, CancellationToken cancellationToken = default)
-        => _git.RunAsync(string.IsNullOrWhiteSpace(remote) ? ["fetch", "--all", "--prune"] : ["fetch", "--prune", remote], cancellationToken: cancellationToken);
-
-    public Task PullAsync(CancellationToken cancellationToken = default)
-        => _git.RunAsync(["pull", "--no-edit"], throwOnError: true, cancellationToken: cancellationToken);
-
-    public Task PushAsync(string? remote = null, string? branch = null, CancellationToken cancellationToken = default)
+    public async Task<string> FetchAsync(string? remote = null, CancellationToken cancellationToken = default)
     {
+        var output = await _git.RunCaptureAsync(
+            string.IsNullOrWhiteSpace(remote) ? ["fetch", "--all", "--prune"] : ["fetch", "--prune", remote!],
+            cancellationToken);
+        return string.IsNullOrWhiteSpace(output) ? "Fetched. Already up to date with remotes." : output;
+    }
+
+    public async Task<string> PullAsync(CancellationToken cancellationToken = default)
+    {
+        var output = await _git.RunCaptureAsync(["pull", "--no-edit"], cancellationToken);
+        return string.IsNullOrWhiteSpace(output) ? "Pulled. Already up to date." : output;
+    }
+
+    public async Task<string> PushAsync(string? remote = null, string? branch = null, CancellationToken cancellationToken = default)
+    {
+        string output;
         if (string.IsNullOrWhiteSpace(remote) && string.IsNullOrWhiteSpace(branch))
-            return _git.RunAsync(["push", "-u", "origin", "HEAD"], cancellationToken: cancellationToken);
-        if (string.IsNullOrWhiteSpace(branch))
-            return _git.RunAsync(["push", remote!], cancellationToken: cancellationToken);
-        return _git.RunAsync(["push", "-u", remote ?? "origin", branch], cancellationToken: cancellationToken);
+            output = await _git.RunCaptureAsync(["push", "-u", "origin", "HEAD"], cancellationToken);
+        else if (string.IsNullOrWhiteSpace(branch))
+            output = await _git.RunCaptureAsync(["push", remote!], cancellationToken);
+        else
+            output = await _git.RunCaptureAsync(["push", "-u", remote ?? "origin", branch], cancellationToken);
+        return string.IsNullOrWhiteSpace(output) ? "Pushed." : output;
     }
 
     public Task StashSaveAsync(string? message = null, CancellationToken cancellationToken = default)
@@ -371,6 +383,8 @@ public sealed class GitCliRepository : IGitRepository
                     : full;
             if (name.EndsWith("/HEAD", StringComparison.Ordinal))
                 continue;
+            var track = parts.Length > 4 ? parts[4] : "";
+            var (ahead, behind) = SyncStatusParser.ParseTrack(track);
             list.Add(new BranchRef
             {
                 Name = name,
@@ -378,7 +392,9 @@ public sealed class GitCliRepository : IGitRepository
                 TipSha = sha,
                 IsRemote = isRemote,
                 IsCurrent = !isRemote && headMark.Contains('*'),
-                Upstream = upstream
+                Upstream = upstream,
+                Ahead = ahead,
+                Behind = behind
             });
         }
 

@@ -173,6 +173,38 @@ public class WorktreeListParserTests
     }
 }
 
+public class SyncStatusParserTests
+{
+    [Fact]
+    public void ParsesAheadAndBehind()
+    {
+        var sync = SyncStatusParser.ParsePorcelain("## main...origin/main [ahead 2, behind 3]\n M file.txt\n");
+        Assert.Equal("main", sync.Branch);
+        Assert.Equal("origin/main", sync.Upstream);
+        Assert.Equal(2, sync.Ahead);
+        Assert.Equal(3, sync.Behind);
+        Assert.True(sync.HasAhead);
+        Assert.True(sync.HasBehind);
+    }
+
+    [Fact]
+    public void ParsesInSync()
+    {
+        var sync = SyncStatusParser.ParsePorcelain("## main...origin/main");
+        Assert.True(sync.HasUpstream);
+        Assert.True(sync.IsInSync);
+    }
+
+    [Fact]
+    public void ParsesNoUpstream()
+    {
+        var sync = SyncStatusParser.ParsePorcelain("## feature/local");
+        Assert.Equal("feature/local", sync.Branch);
+        Assert.False(sync.HasUpstream);
+        Assert.Equal(0, sync.Ahead);
+    }
+}
+
 
 public class SlashTreeTests
 {

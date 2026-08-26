@@ -37,6 +37,39 @@ public sealed class GitCliRunner
         return result.StandardOutput;
     }
 
+    public async Task<string> RunCaptureAsync(
+        IReadOnlyList<string> args,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await CliWrap.Cli.Wrap("git")
+            .WithWorkingDirectory(_workingDirectory)
+            .WithArguments(args)
+            .WithValidation(CommandResultValidation.None)
+            .WithEnvironmentVariables(new Dictionary<string, string?>
+            {
+                ["GIT_TERMINAL_PROMPT"] = "0",
+                ["GIT_OPTIONAL_LOCKS"] = "0",
+                ["GIT_PAGER"] = "cat"
+            })
+            .ExecuteBufferedAsync(cancellationToken);
+
+        var output = CombineOutput(result.StandardOutput, result.StandardError);
+        if (result.ExitCode != 0)
+            throw new GitException(string.Join(' ', args), result.ExitCode, result.StandardError, result.StandardOutput);
+        return output;
+    }
+
+    public static string CombineOutput(string stdout, string stderr)
+    {
+        stdout = stdout.Trim();
+        stderr = stderr.Trim();
+        if (stdout.Length == 0)
+            return stderr;
+        if (stderr.Length == 0)
+            return stdout;
+        return stdout + Environment.NewLine + stderr;
+    }
+
     public async Task<string> RunWithInputAsync(
         IReadOnlyList<string> args,
         string stdin,

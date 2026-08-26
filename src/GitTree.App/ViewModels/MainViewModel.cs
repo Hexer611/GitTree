@@ -18,6 +18,7 @@ public partial class MainViewModel : ViewModelBase
     private bool _suppressWatch;
     private int _watchGate;
     private int _refreshSerial;
+    private bool _preserveError;
     private List<string> _unstagedSelection = [];
     private List<string> _stagedSelection = [];
 
@@ -40,6 +41,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private int _unstagedCount;
     [ObservableProperty] private int _stagedCount;
     [ObservableProperty] private int _conflictCount;
+    [ObservableProperty] private bool _hasConflicts;
     [ObservableProperty] private bool _hasError;
     [ObservableProperty] private bool _hasRecents;
     [ObservableProperty] private int _localCount;
@@ -49,6 +51,18 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private int _worktreeCount;
     [ObservableProperty] private bool _isShowingCommitFiles;
     [ObservableProperty] private bool _needsRefresh;
+    [ObservableProperty] private int _aheadCount;
+    [ObservableProperty] private int _behindCount;
+    [ObservableProperty] private bool _hasUpstream;
+    [ObservableProperty] private bool _hasAhead;
+    [ObservableProperty] private bool _hasBehind;
+    [ObservableProperty] private bool _isInSync;
+    [ObservableProperty] private bool _hasNoUpstream;
+    [ObservableProperty] private string _upstreamName = "";
+    [ObservableProperty] private string _aheadBadge = "";
+    [ObservableProperty] private string _behindBadge = "";
+
+    private string? _pendingStatus;
 
     public ObservableCollection<string> RecentRepositories { get; } = [];
     public ObservableCollection<CommitNode> Commits { get; } = [];
@@ -80,7 +94,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private WorktreeInfo? _selectedWorktree;
     [ObservableProperty] private string? _selectedRecent;
 
-    public bool HasConflictOperation => IsMerging || IsRebasing;
+    public bool HasConflictOperation => IsMerging || IsRebasing || ConflictCount > 0;
 
     public MainViewModel()
     {
@@ -93,7 +107,11 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedUnstagedChanged(FileChange? value)
     {
-        if (value is not null && !IsShowingCommitFiles)
+        if (value is null || IsShowingCommitFiles)
+            return;
+        if (value.IsConflict)
+            _ = LoadConflictFileAsync(value);
+        else
             _ = LoadWorktreeDiffAsync(value, DiffKind.WorkTree);
     }
 
@@ -186,6 +204,7 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnIsMergingChanged(bool value) => OnPropertyChanged(nameof(HasConflictOperation));
     partial void OnIsRebasingChanged(bool value) => OnPropertyChanged(nameof(HasConflictOperation));
+    partial void OnConflictCountChanged(int value) => OnPropertyChanged(nameof(HasConflictOperation));
 
     [RelayCommand]
     private async Task OpenRepositoryAsync()
@@ -245,14 +264,16 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             IsBusy = true;
-            ErrorMessage = "";
+            if (!_preserveError)
+                ErrorMessage = "";
+            _preserveError = false;
             var snapshot = await _repo.RefreshAsync();
             if (serial != _refreshSerial)
                 return;
 
             ApplySnapshot(snapshot);
             NeedsRefresh = false;
-            StatusMessage = $"{snapshot.CurrentBranch}  •  {snapshot.Changes.Count} changed  •  {snapshot.Commits.Count} commits";
+            StatusMessage = ConsumePendingStatus() ?? DefaultStatus(snapshot);
         }
         catch (Exception ex)
         {
@@ -272,7 +293,9 @@ public partial class MainViewModel : ViewModelBase
         IsRebasing = snapshot.Operation.IsRebasing;
 
         Replace(Commits, snapshot.Commits);
-        Replace(Unstaged, snapshot.Changes.Where(c => c.IsUnstaged && !c.IsConflict));
+        Replace(Unstaged,
+            snapshot.Changes.Where(c => c.IsConflict)
+                .Concat(snapshot.Changes.Where(c => c.IsUnstaged && !c.IsConflict)));
         Replace(Staged, snapshot.Changes.Where(c => c.IsStaged));
         Replace(Conflicts, snapshot.Changes.Where(c => c.IsConflict));
         var local = snapshot.Branches.Where(b => !b.IsRemote).ToList();
@@ -290,19 +313,25 @@ public partial class MainViewModel : ViewModelBase
         UnstagedCount = Unstaged.Count;
         StagedCount = Staged.Count;
         ConflictCount = Conflicts.Count;
+        HasConflicts = ConflictCount > 0;
+
+        AheadCount = snapshot.Sync.Ahead;
+        BehindCount = snapshot.Sync.Behind;
+        HasUpstream = snapshot.Sync.HasUpstream;
+        HasAhead = snapshot.Sync.HasAhead;
+        HasBehind = snapshot.Sync.HasBehind;
+        IsInSync = snapshot.Sync.IsInSync;
+        HasNoUpstream = !snapshot.IsDetached && !snapshot.Sync.HasUpstream;
+        UpstreamName = snapshot.Sync.Upstream ?? "";
+        AheadBadge = $"↑ {snapshot.Sync.Ahead}";
+        BehindBadge = $"↓ {snapshot.Sync.Behind}";
     }
 
     [RelayCommand]
     private Task StageAsync() => MutateAsync(r => r.StageAsync(SelectedFilePaths(_unstagedSelection, SelectedUnstaged)));
 
     [RelayCommand]
-    private Task StageAllAsync() => MutateAsync(r => r.StageAsync(Unstaged.Select(f => f.Path)));
-
-    [RelayCommand]
     private Task UnstageAsync() => MutateAsync(r => r.UnstageAsync(SelectedFilePaths(_stagedSelection, SelectedStaged)));
-
-    [RelayCommand]
-    private Task UnstageAllAsync() => MutateAsync(r => r.UnstageAsync(Staged.Select(f => f.Path)));
 
     [RelayCommand]
     private Task DiscardAsync() => MutateAsync(r => r.DiscardAsync(SelectedFilePaths(_unstagedSelection, SelectedUnstaged)));
@@ -310,6 +339,13 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private Task CommitAsync()
     {
+        if (ConflictCount > 0)
+        {
+            ErrorMessage = $"Cannot commit: {ConflictCount} file(s) still have conflicts. Resolve them first.";
+            StatusMessage = "Finish conflict resolution before committing.";
+            return Task.CompletedTask;
+        }
+
         if (string.IsNullOrWhiteSpace(CommitMessage))
         {
             ErrorMessage = "Commit message is required.";
@@ -325,13 +361,16 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private Task FetchAsync() => MutateAsync(r => r.FetchAsync());
+    private Task FetchAsync() => MutateAsync(async r =>
+        _pendingStatus = await r.FetchAsync());
 
     [RelayCommand]
-    private Task PullAsync() => MutateAsync(r => r.PullAsync());
+    private Task PullAsync() => MutateAsync(async r =>
+        _pendingStatus = await r.PullAsync());
 
     [RelayCommand]
-    private Task PushAsync() => MutateAsync(r => r.PushAsync());
+    private Task PushAsync() => MutateAsync(async r =>
+        _pendingStatus = await r.PushAsync());
 
     [RelayCommand]
     private Task CreateBranchAsync()
@@ -625,6 +664,7 @@ public partial class MainViewModel : ViewModelBase
         catch (Exception ex)
         {
             ErrorMessage = ex.Message;
+            _preserveError = true;
             try { await RefreshAsync(); } catch { /* keep original error */ }
         }
         finally
@@ -639,6 +679,36 @@ public partial class MainViewModel : ViewModelBase
         await Task.Delay(900);
         if (gate == _watchGate)
             _suppressWatch = false;
+    }
+
+    private string? ConsumePendingStatus()
+    {
+        var pending = _pendingStatus;
+        _pendingStatus = null;
+        if (string.IsNullOrWhiteSpace(pending))
+            return null;
+        var compact = string.Join("  •  ", pending.Replace("\r\n", "\n")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        return compact.Length <= 280 ? compact : compact[..277] + "...";
+    }
+
+    private string DefaultStatus(RepositorySnapshot snapshot)
+    {
+        var parts = new List<string> { snapshot.CurrentBranch };
+        if (snapshot.Sync.HasAhead)
+            parts.Add($"{snapshot.Sync.Ahead} to push");
+        if (snapshot.Sync.HasBehind)
+            parts.Add($"{snapshot.Sync.Behind} to pull");
+        else if (snapshot.Sync.IsInSync)
+            parts.Add("in sync");
+        else if (!snapshot.Sync.HasUpstream && !snapshot.IsDetached)
+            parts.Add("no upstream");
+        var conflicts = snapshot.Changes.Count(c => c.IsConflict);
+        if (conflicts > 0)
+            parts.Add($"{conflicts} conflicts");
+        parts.Add($"{snapshot.Changes.Count} changed");
+        parts.Add($"{snapshot.Commits.Count} commits");
+        return string.Join("  •  ", parts);
     }
 
     public void SetUnstagedSelection(IEnumerable<FileChange> files) =>

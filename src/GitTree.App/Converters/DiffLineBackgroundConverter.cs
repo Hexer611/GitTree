@@ -67,7 +67,7 @@ public sealed class FileBadgeBrushConverter : IValueConverter
     {
         "A" or "?" => Color.Parse("#7EB0FF"),
         "D" => Color.Parse("#FF7A90"),
-        "C" => Color.Parse("#FF8A9C"),
+        "C" => Color.Parse("#FFFFFF"),
         "R" or "P" => Color.Parse("#8BB0FF"),
         _ => Color.Parse("#F5C542")
     };
@@ -76,10 +76,42 @@ public sealed class FileBadgeBrushConverter : IValueConverter
     {
         "A" or "?" => Color.Parse("#335B8DEF"),
         "D" => Color.Parse("#33FF5C7A"),
-        "C" => Color.Parse("#33FF5C7A"),
+        "C" => Color.Parse("#9B1B32"),
         "R" or "P" => Color.Parse("#285B8DEF"),
         _ => Color.Parse("#33F5C542")
     };
+}
+
+public sealed class ConflictRowBrushConverter : IValueConverter
+{
+    public static readonly ConflictRowBrushConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is true)
+            return new SolidColorBrush(Color.Parse("#FF5C7A"));
+        return Brushes.Transparent;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+public sealed class ConflictTextBrushConverter : IValueConverter
+{
+    public static readonly ConflictTextBrushConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is FileChange { IsConflict: true })
+            return new SolidColorBrush(Color.Parse("#14080C"));
+        if (value is FileChange file)
+            return FileBadgeBrushConverter.Instance.Convert(file.BadgeChar, targetType, "path", culture);
+        return new SolidColorBrush(Color.Parse("#E7ECF5"));
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
 }
 
 public sealed class DecorationChipConverter : IValueConverter
