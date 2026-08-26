@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using GitTree.Core;
 using GitTree.Git.Cli;
 using GitTree.Git.LibGit2;
+using GitTree.App.Views;
 
 namespace GitTree.App.ViewModels;
 
@@ -242,6 +243,19 @@ public partial class MainViewModel : ViewModelBase
         if (item is null || string.IsNullOrWhiteSpace(item.Path))
             return Task.CompletedTask;
         return OpenRepositoryAsync(item.Path);
+    }
+
+    [RelayCommand]
+    private async Task OpenSettingsAsync()
+    {
+        if (Host is null)
+            return;
+
+        var window = new SettingsWindow
+        {
+            DataContext = new SettingsViewModel()
+        };
+        await window.ShowDialog(Host);
     }
 
     public async Task OpenRepositoryAsync(string path)

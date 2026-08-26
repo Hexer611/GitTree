@@ -5,6 +5,16 @@ namespace GitTree.Core;
 public sealed class AppSettings
 {
     public List<string> RecentRepositories { get; set; } = [];
+    public string ThemeId { get; set; } = "nord";
+    public bool RememberWindowPosition { get; set; } = true;
+    public int WindowX { get; set; } = int.MinValue;
+    public int WindowY { get; set; } = int.MinValue;
+    public double WindowWidth { get; set; }
+    public double WindowHeight { get; set; }
+    public string WindowState { get; set; } = "Normal";
+    public double SidebarWidth { get; set; }
+    public double GraphVsDiffShare { get; set; }
+    public double GraphVsFilesShare { get; set; }
 }
 
 public sealed class SettingsStore
@@ -42,14 +52,22 @@ public sealed class SettingsStore
         File.WriteAllText(_filePath, JsonSerializer.Serialize(settings, JsonOptions));
     }
 
-    public void RememberRepository(string path)
+    public void Update(Action<AppSettings> mutate)
     {
         var settings = Load();
-        settings.RecentRepositories.RemoveAll(p =>
-            string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
-        settings.RecentRepositories.Insert(0, path);
-        if (settings.RecentRepositories.Count > 12)
-            settings.RecentRepositories.RemoveRange(12, settings.RecentRepositories.Count - 12);
+        mutate(settings);
         Save(settings);
+    }
+
+    public void RememberRepository(string path)
+    {
+        Update(settings =>
+        {
+            settings.RecentRepositories.RemoveAll(p =>
+                string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+            settings.RecentRepositories.Insert(0, path);
+            if (settings.RecentRepositories.Count > 12)
+                settings.RecentRepositories.RemoveRange(12, settings.RecentRepositories.Count - 12);
+        });
     }
 }

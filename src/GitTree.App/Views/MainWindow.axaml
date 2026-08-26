@@ -18,17 +18,17 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto">
+    <Grid RowDefinitions="Auto,*,Auto">
         <Border Classes="toolbar" Padding="14,10">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                     <Border Width="28" Height="28" CornerRadius="8"
-                            Background="#1A3DDC97" BorderBrush="#553DDC97" BorderThickness="1">
+                            Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentSoftBrush}" BorderThickness="1">
                         <TextBlock Text="⌥" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                   Foreground="#3DDC97" FontWeight="Bold" />
+                                   Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" />
                     </Border>
                     <TextBlock Classes="brand" Text="GitTree" VerticalAlignment="Center" />
-                    <Border Width="1" Height="22" Background="#2A354C" Margin="6,0" />
+                    <Border Width="1" Height="22" Background="{DynamicResource LineBrush}" Margin="6,0" />
                     <Button Classes="accent" Content="Open repository" Command="{Binding OpenRepositoryCommand}" />
                     <ComboBox Width="280" ItemsSource="{Binding RecentRepositories}"
                               SelectedItem="{Binding SelectedRecent}"
@@ -37,7 +37,7 @@
                             <DataTemplate x:DataType="vm:RecentRepoItem">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{Binding Name}" />
-                                    <TextBlock Text="{Binding Branch}" Foreground="#8B95A8" FontSize="12" />
+                                    <TextBlock Text="{Binding Branch}" Foreground="{DynamicResource MutedBrush}" FontSize="12" />
                                 </StackPanel>
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
@@ -45,10 +45,10 @@
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Border CornerRadius="999" Padding="10,5" Background="#143DDC97" BorderBrush="#333DDC97" BorderThickness="1"
+                    <Border CornerRadius="999" Padding="10,5" Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentSoftBrush}" BorderThickness="1"
                             IsVisible="{Binding HasRepo}">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Ellipse Width="7" Height="7" Fill="#3DDC97" />
+                            <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" />
                             <TextBlock Text="{Binding CurrentBranch}" FontWeight="SemiBold" FontSize="12.5" />
                             <Border CornerRadius="999" Padding="7,1" Background="#28F5C542" IsVisible="{Binding HasAhead}"
                                     ToolTip.Tip="Local commits not on the remote. Push to publish them.">
@@ -71,10 +71,12 @@
                             IsVisible="{Binding NeedsRefresh}"
                             ToolTip.Tip="Files or refs changed on disk. Click to reload this branch.">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Ellipse Width="7" Height="7" Fill="#F5C542" />
+                            <Ellipse Width="7" Height="7" Fill="{DynamicResource WarningBrush}" />
                             <TextBlock Text="Refresh needed" FontWeight="SemiBold" FontSize="12.5" />
                         </StackPanel>
                     </Button>
+                    <Button Classes="ghost" Content="Settings" Command="{Binding OpenSettingsCommand}"
+                            ToolTip.Tip="Themes and window position" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -111,10 +113,8 @@
             </DockPanel>
         </Border>
 
-        <ProgressBar Grid.Row="1" IsIndeterminate="True" IsVisible="{Binding IsBusy}" Opacity="0.9" />
-
-        <Grid Grid.Row="2">
-            <Grid ColumnDefinitions="268,8,*" Margin="12" IsVisible="{Binding HasRepo}">
+        <Grid Grid.Row="1">
+            <Grid x:Name="WorkspaceGrid" ColumnDefinitions="268,8,*" Margin="12" IsVisible="{Binding HasRepo}">
                 <Border Classes="pane">
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                   VerticalScrollBarVisibility="Auto">
@@ -122,8 +122,8 @@
                             <Expander Classes="sidebar" IsExpanded="True">
                                 <Expander.Header>
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="#143DDC97" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
-                                            <TextBlock Text="{Binding LocalCount}" FontSize="11" Foreground="#3DDC97" />
+                                        <Border DockPanel.Dock="Right" Background="{DynamicResource AccentSubtleBrush}" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding LocalCount}" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
                                         </Border>
                                         <TextBlock Classes="section" Text="LOCAL" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
@@ -143,20 +143,20 @@
                                             <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
                                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                                     <Panel Width="16" Margin="0,0,6,0" VerticalAlignment="Center">
-                                                        <TextBlock Text="▸" Foreground="#6E7A90" IsVisible="{Binding IsFolder}" />
-                                                        <Ellipse Width="7" Height="7" Fill="#3DDC97" HorizontalAlignment="Center"
+                                                        <TextBlock Text="▸" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding IsFolder}" />
+                                                        <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Center"
                                                                  IsVisible="{Binding IsCurrent}" />
-                                                        <Ellipse Width="7" Height="7" Fill="#3A455C" HorizontalAlignment="Center"
+                                                        <Ellipse Width="7" Height="7" Fill="{DynamicResource LineBrush}" HorizontalAlignment="Center"
                                                                  IsVisible="{Binding IsInactiveBranch}" />
                                                     </Panel>
                                                     <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
                                                                VerticalAlignment="Center" />
                                                     <TextBlock Grid.Column="2" Text="{Binding SyncBadge}" FontSize="10"
-                                                               Foreground="#F5C542" VerticalAlignment="Center" Margin="6,0,0,0"
+                                                               Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Center" Margin="6,0,0,0"
                                                                IsVisible="{Binding HasSyncBadge}" />
-                                                    <Border Grid.Column="3" Background="#223DDC97" CornerRadius="999" Padding="6,1"
+                                                    <Border Grid.Column="3" Background="{DynamicResource AccentSoftBrush}" CornerRadius="999" Padding="6,1"
                                                             IsVisible="{Binding IsCurrent}">
-                                                        <TextBlock Text="HEAD" FontSize="10" Foreground="#3DDC97" />
+                                                        <TextBlock Text="HEAD" FontSize="10" Foreground="{DynamicResource AccentBrush}" />
                                                     </Border>
                                                 </Grid>
                                             </TreeDataTemplate>
@@ -172,8 +172,8 @@
                             <Expander Classes="sidebar" IsExpanded="True">
                                 <Expander.Header>
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="#225B8DEF" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
-                                            <TextBlock Text="{Binding RemoteCount}" FontSize="11" Foreground="#9BB4FF" />
+                                        <Border DockPanel.Dock="Right" Background="{DynamicResource InfoSubtleBrush}" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding RemoteCount}" FontSize="11" Foreground="{DynamicResource InfoBrush}" />
                                         </Border>
                                         <TextBlock Classes="section" Text="REMOTES" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
@@ -183,9 +183,9 @@
                                         <TreeView.ItemTemplate>
                                             <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
                                                 <Grid ColumnDefinitions="Auto,*">
-                                                    <TextBlock Text="▸" Foreground="#6E7A90" Margin="0,0,6,0" IsVisible="{Binding IsFolder}" />
+                                                    <TextBlock Text="▸" Foreground="{DynamicResource MutedBrush}" Margin="0,0,6,0" IsVisible="{Binding IsFolder}" />
                                                     <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
-                                                               Foreground="#9BB4FF" />
+                                                               Foreground="{DynamicResource InfoBrush}" />
                                                 </Grid>
                                             </TreeDataTemplate>
                                         </TreeView.ItemTemplate>
@@ -198,8 +198,8 @@
                             <Expander Classes="sidebar" IsExpanded="False">
                                 <Expander.Header>
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="#22F5C542" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
-                                            <TextBlock Text="{Binding TagCount}" FontSize="11" Foreground="#F5C542" />
+                                        <Border DockPanel.Dock="Right" Background="{DynamicResource WarningSubtleBrush}" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding TagCount}" FontSize="11" Foreground="{DynamicResource WarningBrush}" />
                                         </Border>
                                         <TextBlock Classes="section" Text="TAGS" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
@@ -209,9 +209,9 @@
                                         <TreeView.ItemTemplate>
                                             <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
                                                 <Grid ColumnDefinitions="Auto,*">
-                                                    <TextBlock Text="▸" Foreground="#6E7A90" Margin="0,0,6,0" IsVisible="{Binding IsFolder}" />
+                                                    <TextBlock Text="▸" Foreground="{DynamicResource MutedBrush}" Margin="0,0,6,0" IsVisible="{Binding IsFolder}" />
                                                     <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
-                                                               Foreground="#F5C542" />
+                                                               Foreground="{DynamicResource WarningBrush}" />
                                                 </Grid>
                                             </TreeDataTemplate>
                                         </TreeView.ItemTemplate>
@@ -224,8 +224,8 @@
                             <Expander Classes="sidebar" IsExpanded="False">
                                 <Expander.Header>
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="#22FFFFFF" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
-                                            <TextBlock Text="{Binding StashCount}" FontSize="11" Foreground="#8B95A8" />
+                                        <Border DockPanel.Dock="Right" Background="{DynamicResource OverlayBrush}" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding StashCount}" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
                                         </Border>
                                         <TextBlock Classes="section" Text="STASHES" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
@@ -248,8 +248,8 @@
                             <Expander Classes="sidebar" IsExpanded="True">
                                 <Expander.Header>
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="#222EE6D6" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
-                                            <TextBlock Text="{Binding WorktreeCount}" FontSize="11" Foreground="#2EE6D6" />
+                                        <Border DockPanel.Dock="Right" Background="{DynamicResource AccentSubtleBrush}" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding WorktreeCount}" FontSize="11" Foreground="{DynamicResource AccentHoverBrush}" />
                                         </Border>
                                         <TextBlock Classes="section" Text="WORKTREES" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
@@ -270,10 +270,10 @@
                                         <TreeView.ItemTemplate>
                                             <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
                                                 <Grid ColumnDefinitions="*,Auto">
-                                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" Foreground="#2EE6D6" />
-                                                    <Border Grid.Column="1" Background="#222EE6D6" CornerRadius="999" Padding="6,1"
+                                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource AccentHoverBrush}" />
+                                                    <Border Grid.Column="1" Background="{DynamicResource AccentSubtleBrush}" CornerRadius="999" Padding="6,1"
                                                             IsVisible="{Binding IsCurrent}">
-                                                        <TextBlock Text="HERE" FontSize="10" Foreground="#2EE6D6" />
+                                                        <TextBlock Text="HERE" FontSize="10" Foreground="{DynamicResource AccentHoverBrush}" />
                                                     </Border>
                                                 </Grid>
                                             </TreeDataTemplate>
@@ -291,8 +291,8 @@
 
                 <GridSplitter Grid.Column="1" />
 
-                <Grid Grid.Column="2" RowDefinitions="*,8,236">
-                    <Grid>
+                <Grid x:Name="GraphFilesGrid" Grid.Column="2" RowDefinitions="*,8,236">
+                    <Grid x:Name="GraphDiffGrid">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="2*" MinWidth="280" />
                             <ColumnDefinition Width="8" />
@@ -300,7 +300,7 @@
                         </Grid.ColumnDefinitions>
                     <Border Classes="pane">
                         <DockPanel>
-                            <Border DockPanel.Dock="Top" Padding="14,10" BorderBrush="#243044" BorderThickness="0,0,0,1">
+                            <Border DockPanel.Dock="Top" Padding="14,10" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1">
                                 <DockPanel>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
                                         <Button Classes="ghost tiny" Content="Working tree"
@@ -412,16 +412,16 @@
 
                     <Border Grid.Row="1" Classes="pane">
                         <DockPanel>
-                            <Border DockPanel.Dock="Top" Padding="14,10" BorderBrush="#243044" BorderThickness="0,0,0,1">
+                            <Border DockPanel.Dock="Top" Padding="14,10" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1">
                                 <DockPanel>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <Border Width="10" Height="10" CornerRadius="2" Background="#3A1822" BorderBrush="#FF5C7A" BorderThickness="1" />
-                                            <TextBlock Text="removed" FontSize="11" Foreground="#E07A8C" />
+                                            <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource DiffRemovedBgBrush}" BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1" />
+                                            <TextBlock Text="removed" FontSize="11" Foreground="{DynamicResource DangerBrush}" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <Border Width="10" Height="10" CornerRadius="2" Background="#163A2A" BorderBrush="#3DDC97" BorderThickness="1" />
-                                            <TextBlock Text="added" FontSize="11" Foreground="#5FBF94" />
+                                            <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource DiffAddedBgBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" />
+                                            <TextBlock Text="added" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
                                         </StackPanel>
                                     </StackPanel>
                                     <TextBlock Text="{Binding DiffHeader}" FontSize="12.5" FontWeight="SemiBold"
@@ -439,7 +439,7 @@
                                      BorderThickness="0"
                                      CornerRadius="0" />
                             <ListBox Classes="diff" IsVisible="{Binding !ShowConflictEditor}" ItemsSource="{Binding DiffLines}"
-                                     Background="#0C1018">
+                                     Background="{DynamicResource DiffBgBrush}">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="core:DiffLine">
                                         <controls:DiffLineView Line="{Binding}" />
@@ -457,7 +457,7 @@
                         <Grid ColumnDefinitions="*,8,*,8,220" IsVisible="{Binding !IsShowingCommitFiles}">
                             <Border Classes="pane">
                                 <DockPanel>
-                                    <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="#243044" BorderThickness="0,0,0,1">
+                                    <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1">
                                         <DockPanel>
                                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
                                                 <Button Classes="ghost tiny" Content="Stage" Command="{Binding StageCommand}"
@@ -507,7 +507,7 @@
 
                             <Border Grid.Column="2" Classes="pane">
                                 <DockPanel>
-                                    <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="#243044" BorderThickness="0,0,0,1">
+                                    <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1">
                                         <DockPanel>
                                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
                                                 <Button Classes="ghost tiny" Content="Unstage" Command="{Binding UnstageCommand}"
@@ -567,7 +567,7 @@
 
                         <Border Classes="pane" IsVisible="{Binding IsShowingCommitFiles}">
                             <DockPanel>
-                                <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="#243044" BorderThickness="0,0,0,1">
+                                <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1">
                                     <Grid ColumnDefinitions="Auto,Auto,*" ClipToBounds="True">
                                         <TextBlock Classes="section" Text="CHANGED IN COMMIT" Margin="0,0,8,0" VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="1" Text="{Binding SelectedCommit.ShortSha}" FontFamily="Cascadia Mono, Consolas, monospace"
@@ -604,21 +604,15 @@
                 </Grid>
             </Grid>
 
-            <Grid RowDefinitions="Auto,*" IsVisible="{Binding !HasRepo}" Margin="28,20,28,16">
-                <Grid.Background>
-                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                        <GradientStop Color="#07090D" Offset="0" />
-                        <GradientStop Color="#0E1A16" Offset="0.55" />
-                        <GradientStop Color="#0B1220" Offset="1" />
-                    </LinearGradientBrush>
-                </Grid.Background>
+            <Grid RowDefinitions="Auto,*" IsVisible="{Binding !HasRepo}" Margin="28,20,28,16"
+                  Background="{DynamicResource Bg0Brush}">
                 <DockPanel Margin="0,0,0,18">
                     <Button Classes="accent" Content="Open a Git repository" Command="{Binding OpenRepositoryCommand}"
                             DockPanel.Dock="Right" Padding="18,10" VerticalAlignment="Center" />
                     <StackPanel Spacing="6" VerticalAlignment="Center">
                         <TextBlock Text="Latest repositories" FontSize="26" FontWeight="Bold" />
                         <TextBlock Text="Pick a recent repo to open it. Branch, last commit, and working-tree status sit next to each name."
-                                   TextWrapping="Wrap" Foreground="#8B95A8" FontSize="14" />
+                                   TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" FontSize="14" />
                     </StackPanel>
                 </DockPanel>
 
@@ -635,29 +629,29 @@
                                     <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                             Padding="0" Command="{Binding DataContext.OpenRecentCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}">
-                                        <Border Background="#121826" CornerRadius="10" Padding="14,12"
-                                                BorderBrush="#243044" BorderThickness="1">
+                                        <Border Background="{DynamicResource Bg2Brush}" CornerRadius="10" Padding="14,12"
+                                                BorderBrush="{DynamicResource LineBrush}" BorderThickness="1">
                                             <Grid ColumnDefinitions="220,*,160,110" ColumnSpacing="16">
                                                 <StackPanel Spacing="2">
                                                     <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"
                                                                TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Text="{Binding ParentFolder}" FontSize="11.5" Foreground="#667084"
+                                                    <TextBlock Text="{Binding ParentFolder}" FontSize="11.5" Foreground="{DynamicResource MutedBrush}"
                                                                TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Spacing="2">
-                                                    <TextBlock Text="{Binding LastCommit}" FontSize="13" Foreground="#C5CDDA"
+                                                    <TextBlock Text="{Binding LastCommit}" FontSize="13"
                                                                TextTrimming="CharacterEllipsis"
                                                                ToolTip.Tip="{Binding LastCommit}" />
-                                                    <TextBlock Text="{Binding LastCommitWhen}" FontSize="11.5" Foreground="#667084" />
+                                                    <TextBlock Text="{Binding LastCommitWhen}" FontSize="11.5" Foreground="{DynamicResource MutedBrush}" />
                                                 </StackPanel>
-                                                <Border Grid.Column="2" Background="#143DDC97" CornerRadius="999" Padding="10,4"
+                                                <Border Grid.Column="2" Background="{DynamicResource AccentSubtleBrush}" CornerRadius="999" Padding="10,4"
                                                         HorizontalAlignment="Left" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Branch}" FontSize="12" Foreground="#3DDC97"
+                                                    <TextBlock Text="{Binding Branch}" FontSize="12" Foreground="{DynamicResource AccentBrush}"
                                                                FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                                 </Border>
                                                 <TextBlock Grid.Column="3" Text="{Binding StatusLabel}" FontSize="12.5"
                                                            VerticalAlignment="Center" HorizontalAlignment="Right"
-                                                           Foreground="#F5C542" />
+                                                           Foreground="{DynamicResource WarningBrush}" />
                                             </Grid>
                                         </Border>
                                     </Button>
@@ -667,23 +661,26 @@
                         <StackPanel IsVisible="{Binding !HasRecents}" HorizontalAlignment="Center" Margin="0,48,0,0" Spacing="10">
                             <TextBlock Text="No recent repositories yet" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
                             <TextBlock Text="Open a Git folder and it will show up here next time."
-                                       Foreground="#8B95A8" HorizontalAlignment="Center" />
+                                       Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
+            <ProgressBar VerticalAlignment="Top" Height="2" MinHeight="2"
+                         IsIndeterminate="True" IsHitTestVisible="False"
+                         IsVisible="{Binding IsBusy}" Opacity="0.95" />
         </Grid>
 
-        <Border Grid.Row="3" Background="#080B11" BorderBrush="#243044" BorderThickness="0,1,0,0" Padding="14,8">
+        <Border Grid.Row="2" Background="{DynamicResource Bg0Brush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Padding="14,8">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Ellipse Width="8" Height="8" Fill="#3DDC97" IsVisible="{Binding !HasError}" />
-                    <Ellipse Width="8" Height="8" Fill="#FF5C7A" IsVisible="{Binding HasError}" />
-                    <TextBlock Text="{Binding StatusMessage}" Foreground="#8B95A8" FontSize="12.5" />
+                    <Ellipse Width="8" Height="8" Fill="{DynamicResource AccentBrush}" IsVisible="{Binding !HasError}" />
+                    <Ellipse Width="8" Height="8" Fill="{DynamicResource DangerBrush}" IsVisible="{Binding HasError}" />
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource MutedBrush}" FontSize="12.5" />
                 </StackPanel>
-                <TextBlock Grid.Column="1" Text="{Binding ErrorMessage}" Foreground="#FF8A9C" FontSize="12.5"
+                <TextBlock Grid.Column="1" Text="{Binding ErrorMessage}" Foreground="{DynamicResource DangerBrush}" FontSize="12.5"
                            Margin="18,0" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Column="2" Text="{Binding RepoPath}" Foreground="#5C6678" FontSize="12" />
+                <TextBlock Grid.Column="2" Text="{Binding RepoPath}" Foreground="{DynamicResource MutedBrush}" FontSize="12" />
             </Grid>
         </Border>
     </Grid>

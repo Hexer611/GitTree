@@ -5,8 +5,10 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using GitTree.App.Theming;
 using GitTree.App.ViewModels;
 using GitTree.Core;
+using System.ComponentModel;
 
 namespace GitTree.App.Views;
 
@@ -17,9 +19,11 @@ public partial class MainWindow : Window
         AvaloniaXamlLoader.Load(this);
         Opened += (_, _) =>
         {
+            WindowPlacement.Restore(this);
             if (DataContext is MainViewModel vm)
             {
                 vm.Host = this;
+                vm.PropertyChanged += OnViewModelPropertyChanged;
                 vm.CommitRevealed += commit =>
                 {
                     Dispatcher.UIThread.Post(() =>
@@ -30,6 +34,13 @@ public partial class MainWindow : Window
                 };
             }
         };
+        Closing += (_, _) => WindowPlacement.Save(this);
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.HasRepo) && sender is MainViewModel { HasRepo: true })
+            Dispatcher.UIThread.Post(() => WindowPlacement.RestorePanes(this), DispatcherPriority.Loaded);
     }
 
     private void OnLocalTreeContextRequested(object? sender, ContextRequestedEventArgs e)

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using GitTree.App.Theming;
 using GitTree.App.ViewModels;
 using GitTree.App.Views;
 
@@ -24,6 +25,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            ThemeManager.ApplySaved();
             desktop.MainWindow = new MainWindow
             {
                 DataContext = new MainViewModel(),

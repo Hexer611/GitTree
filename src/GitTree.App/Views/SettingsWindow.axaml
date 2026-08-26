@@ -1,0 +1,70 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GitTree.App.ViewModels"
+        xmlns:theming="using:GitTree.App.Theming"
+        x:Class="GitTree.App.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="Settings"
+        Width="640" Height="560"
+        MinWidth="520" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <Design.DataContext>
+        <vm:SettingsViewModel />
+    </Design.DataContext>
+
+    <DockPanel Margin="18">
+        <TextBlock DockPanel.Dock="Top" Text="Settings" FontSize="22" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock DockPanel.Dock="Top" Text="Theme and window layout are stored on this machine and restored the next time GitTree opens."
+                   Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,16" />
+
+        <Border DockPanel.Dock="Bottom" Classes="pane" Padding="14" Margin="0,14,0,0">
+            <StackPanel Spacing="10">
+                <TextBlock Classes="section" Text="WINDOW" Margin="0" />
+                <CheckBox Content="Remember window position, size, and pane layout"
+                          IsChecked="{Binding RememberWindowPosition}" />
+                <TextBlock Text="When enabled, GitTree restores the last screen position, window size, and the relative sizes of the sidebar, graph, and diff panes."
+                           Foreground="{DynamicResource MutedBrush}" FontSize="12.5" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <Border Classes="pane" Padding="14">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Classes="section" Text="THEME" Margin="0,0,0,10" />
+                <ListBox ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedTheme}"
+                         Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="theming:AppTheme">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="4,6">
+                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Top" Margin="0,4,0,0">
+                                    <Border Width="18" Height="18" CornerRadius="4" Background="{Binding Bg0Brush}"
+                                            BorderBrush="{Binding LineBrush}" BorderThickness="1" />
+                                    <Border Width="18" Height="18" CornerRadius="4" Background="{Binding Bg1Brush}"
+                                            BorderBrush="{Binding LineBrush}" BorderThickness="1" />
+                                    <Border Width="18" Height="18" CornerRadius="4" Background="{Binding AccentBrush}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" />
+                                    <TextBlock Text="{Binding Description}" Foreground="{DynamicResource MutedBrush}"
+                                               FontSize="12" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Border Background="{DynamicResource AccentSubtleBrush}" CornerRadius="999" Padding="8,2">
+                                            <TextBlock Text="{Binding AppearanceTag}" FontSize="11"
+                                                       Foreground="{DynamicResource AccentBrush}" />
+                                        </Border>
+                                        <Border Background="{DynamicResource OverlayBrush}" CornerRadius="999" Padding="8,2"
+                                                BorderBrush="{DynamicResource LineBrush}" BorderThickness="1">
+                                            <TextBlock Text="{Binding ContrastTag}" FontSize="11"
+                                                       Foreground="{DynamicResource MutedBrush}" />
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+    </DockPanel>
+</Window>

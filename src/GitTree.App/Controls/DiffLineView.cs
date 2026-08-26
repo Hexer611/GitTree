@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Layout;
 using Avalonia.Media;
+using GitTree.App.Theming;
 using GitTree.Core;
 
 namespace GitTree.App.Controls;
@@ -13,21 +14,6 @@ public sealed class DiffLineView : Grid
         AvaloniaProperty.Register<DiffLineView, DiffLine?>(nameof(Line));
 
     private static readonly FontFamily Mono = new("Cascadia Mono, Consolas, Courier New, monospace");
-    private static readonly SolidColorBrush AddedBg = Brush("#163A2A");
-    private static readonly SolidColorBrush RemovedBg = Brush("#3A1822");
-    private static readonly SolidColorBrush HunkBg = Brush("#121A2C");
-    private static readonly SolidColorBrush ContextBg = Brush("#0C1018");
-    private static readonly SolidColorBrush AddedFg = Brush("#C6F6DC");
-    private static readonly SolidColorBrush RemovedFg = Brush("#FFC9D2");
-    private static readonly SolidColorBrush ContextFg = Brush("#D5DCE8");
-    private static readonly SolidColorBrush HunkFg = Brush("#9BB4F0");
-    private static readonly SolidColorBrush AddedNum = Brush("#5FBF94");
-    private static readonly SolidColorBrush RemovedNum = Brush("#E07A8C");
-    private static readonly SolidColorBrush MuteNum = Brush("#4A5568");
-    private static readonly SolidColorBrush AddedMark = Brush("#3DDC97");
-    private static readonly SolidColorBrush RemovedMark = Brush("#FF5C7A");
-    private static readonly SolidColorBrush AddedSpan = Brush("#2A6B4A");
-    private static readonly SolidColorBrush RemovedSpan = Brush("#7A2C3A");
 
     static DiffLineView()
     {
@@ -42,6 +28,8 @@ public sealed class DiffLineView : Grid
         ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
         MinHeight = 24;
         HorizontalAlignment = HorizontalAlignment.Stretch;
+        ThemeManager.Changed += OnThemeChanged;
+        DetachedFromVisualTree += (_, _) => ThemeManager.Changed -= OnThemeChanged;
     }
 
     public DiffLine? Line
@@ -50,6 +38,8 @@ public sealed class DiffLineView : Grid
         set => SetValue(LineProperty, value);
     }
 
+    private void OnThemeChanged() => Rebuild();
+
     private void Rebuild()
     {
         Children.Clear();
@@ -57,17 +47,31 @@ public sealed class DiffLineView : Grid
         if (line is null)
             return;
 
+        var addedBg = ThemeResources.Brush("DiffAddedBgBrush");
+        var removedBg = ThemeResources.Brush("DiffRemovedBgBrush");
+        var hunkBg = ThemeResources.Brush("DiffHunkBgBrush");
+        var contextBg = ThemeResources.Brush("DiffBgBrush");
+        var addedFg = ThemeResources.Brush("DiffAddedFgBrush");
+        var removedFg = ThemeResources.Brush("DiffRemovedFgBrush");
+        var contextFg = ThemeResources.Brush("TextBrush");
+        var hunkFg = ThemeResources.Brush("InfoBrush");
+        var addedMark = ThemeResources.Brush("AccentBrush");
+        var removedMark = ThemeResources.Brush("DangerBrush");
+        var mute = ThemeResources.Brush("MutedBrush");
+        var addedSpan = ThemeResources.Brush("DiffAddedSpanBrush");
+        var removedSpan = ThemeResources.Brush("DiffRemovedSpanBrush");
+
         Background = line.Kind switch
         {
-            DiffLineKind.Added => AddedBg,
-            DiffLineKind.Removed => RemovedBg,
-            DiffLineKind.Hunk => HunkBg,
-            _ => ContextBg
+            DiffLineKind.Added => addedBg,
+            DiffLineKind.Removed => removedBg,
+            DiffLineKind.Hunk => hunkBg,
+            _ => contextBg
         };
 
         if (line.Kind == DiffLineKind.Hunk)
         {
-            var hunk = Text(line.DisplayText, HunkFg, 12, FontWeight.SemiBold);
+            var hunk = Text(line.DisplayText, hunkFg, 12, FontWeight.SemiBold);
             hunk.Margin = new Thickness(12, 5, 10, 5);
             hunk.TextWrapping = TextWrapping.Wrap;
             SetColumnSpan(hunk, 4);
@@ -75,19 +79,19 @@ public sealed class DiffLineView : Grid
             return;
         }
 
-        var oldFg = line.Kind == DiffLineKind.Removed ? RemovedNum : MuteNum;
-        var newFg = line.Kind == DiffLineKind.Added ? AddedNum : MuteNum;
+        var oldFg = line.Kind == DiffLineKind.Removed ? removedMark : mute;
+        var newFg = line.Kind == DiffLineKind.Added ? addedMark : mute;
         var prefixFg = line.Kind switch
         {
-            DiffLineKind.Added => AddedMark,
-            DiffLineKind.Removed => RemovedMark,
-            _ => MuteNum
+            DiffLineKind.Added => addedMark,
+            DiffLineKind.Removed => removedMark,
+            _ => mute
         };
         var textFg = line.Kind switch
         {
-            DiffLineKind.Added => AddedFg,
-            DiffLineKind.Removed => RemovedFg,
-            _ => ContextFg
+            DiffLineKind.Added => addedFg,
+            DiffLineKind.Removed => removedFg,
+            _ => contextFg
         };
 
         Children.Add(Gutter(line.OldNumberText, oldFg, 0));
@@ -111,7 +115,7 @@ public sealed class DiffLineView : Grid
         };
         if (line.Segments.Count > 0)
         {
-            var highlight = line.Kind == DiffLineKind.Added ? AddedSpan : RemovedSpan;
+            var highlight = line.Kind == DiffLineKind.Added ? addedSpan : removedSpan;
             var inlines = new InlineCollection();
             foreach (var segment in line.Segments)
             {
@@ -152,6 +156,4 @@ public sealed class DiffLineView : Grid
             FontSize = size,
             FontWeight = weight
         };
-
-    private static SolidColorBrush Brush(string hex) => new(Color.Parse(hex));
 }
