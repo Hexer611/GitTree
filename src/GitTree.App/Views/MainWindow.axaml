@@ -122,8 +122,8 @@
                             <Expander Classes="sidebar" IsExpanded="True">
                                 <Expander.Header>
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="{DynamicResource AccentSubtleBrush}" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
-                                            <TextBlock Text="{Binding LocalCount}" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
+                                        <Border DockPanel.Dock="Right" Classes="count" Background="{DynamicResource AccentSubtleBrush}" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding LocalCount}" Foreground="{DynamicResource AccentBrush}" />
                                         </Border>
                                         <TextBlock Classes="section" Text="LOCAL" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
@@ -172,8 +172,8 @@
                             <Expander Classes="sidebar" IsExpanded="True">
                                 <Expander.Header>
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="{DynamicResource InfoSubtleBrush}" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
-                                            <TextBlock Text="{Binding RemoteCount}" FontSize="11" Foreground="{DynamicResource InfoBrush}" />
+                                        <Border DockPanel.Dock="Right" Classes="count" Background="{DynamicResource InfoSubtleBrush}" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding RemoteCount}" Foreground="{DynamicResource InfoBrush}" />
                                         </Border>
                                         <TextBlock Classes="section" Text="REMOTES" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
@@ -198,8 +198,8 @@
                             <Expander Classes="sidebar" IsExpanded="False">
                                 <Expander.Header>
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="{DynamicResource WarningSubtleBrush}" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
-                                            <TextBlock Text="{Binding TagCount}" FontSize="11" Foreground="{DynamicResource WarningBrush}" />
+                                        <Border DockPanel.Dock="Right" Classes="count" Background="{DynamicResource WarningSubtleBrush}" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding TagCount}" Foreground="{DynamicResource WarningBrush}" />
                                         </Border>
                                         <TextBlock Classes="section" Text="TAGS" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
@@ -224,8 +224,8 @@
                             <Expander Classes="sidebar" IsExpanded="False">
                                 <Expander.Header>
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="{DynamicResource OverlayBrush}" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
-                                            <TextBlock Text="{Binding StashCount}" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        <Border DockPanel.Dock="Right" Classes="count" Background="{DynamicResource OverlayBrush}" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding StashCount}" Foreground="{DynamicResource MutedBrush}" />
                                         </Border>
                                         <TextBlock Classes="section" Text="STASHES" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
@@ -248,8 +248,8 @@
                             <Expander Classes="sidebar" IsExpanded="True">
                                 <Expander.Header>
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="{DynamicResource AccentSubtleBrush}" CornerRadius="999" Padding="7,1" Margin="8,0,0,0">
-                                            <TextBlock Text="{Binding WorktreeCount}" FontSize="11" Foreground="{DynamicResource AccentHoverBrush}" />
+                                        <Border DockPanel.Dock="Right" Classes="count" Background="{DynamicResource AccentSubtleBrush}" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding WorktreeCount}" Foreground="{DynamicResource AccentHoverBrush}" />
                                         </Border>
                                         <TextBlock Classes="section" Text="WORKTREES" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
@@ -378,8 +378,8 @@
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Border Width="8" Height="8" CornerRadius="4" Background="#FF5C7A" />
                                 <TextBlock Text="Conflicts need your attention" FontWeight="SemiBold" />
-                                <Border Background="#33FF5C7A" CornerRadius="999" Padding="7,1">
-                                    <TextBlock Text="{Binding ConflictCount}" FontSize="11" Foreground="#FF5C7A" />
+                                <Border Classes="count" Background="{DynamicResource DangerSubtleBrush}">
+                                    <TextBlock Text="{Binding ConflictCount}" Foreground="{DynamicResource DangerBrush}" />
                                 </Border>
                             </StackPanel>
                             <WrapPanel>
@@ -468,8 +468,8 @@
                                             </StackPanel>
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <TextBlock Classes="section" Text="UNSTAGED" Margin="0" VerticalAlignment="Center" />
-                                                <Border Background="#22C9A227" CornerRadius="999" Padding="7,1">
-                                                    <TextBlock Text="{Binding UnstagedCount}" FontSize="11" Foreground="#F5C542" />
+                                                <Border Classes="count" Background="{DynamicResource WarningSubtleBrush}">
+                                                    <TextBlock Text="{Binding UnstagedCount}" Foreground="{DynamicResource WarningBrush}" />
                                                 </Border>
                                             </StackPanel>
                                         </DockPanel>
@@ -517,8 +517,8 @@
                                             </StackPanel>
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <TextBlock Classes="section" Text="STAGED" Margin="0" VerticalAlignment="Center" />
-                                                <Border Background="#223DDC97" CornerRadius="999" Padding="7,1">
-                                                    <TextBlock Text="{Binding StagedCount}" FontSize="11" Foreground="#3DDC97" />
+                                                <Border Classes="count" Background="{DynamicResource AccentSubtleBrush}">
+                                                    <TextBlock Text="{Binding StagedCount}" Foreground="{DynamicResource AccentBrush}" />
                                                 </Border>
                                             </StackPanel>
                                         </DockPanel>
