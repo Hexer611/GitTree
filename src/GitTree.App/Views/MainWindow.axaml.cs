@@ -5,6 +5,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using GitTree.App.ViewModels;
+using GitTree.Core;
 
 namespace GitTree.App.Views;
 
@@ -54,5 +55,17 @@ public partial class MainWindow : Window
 
         tree.SelectedItem = node;
         return node;
+    }
+
+    private void OnUnstagedSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ListBox list && DataContext is MainViewModel vm)
+            vm.SetUnstagedSelection(list.SelectedItems?.OfType<FileChange>() ?? []);
+    }
+
+    private void OnStagedSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ListBox list && DataContext is MainViewModel vm)
+            vm.SetStagedSelection(list.SelectedItems?.OfType<FileChange>() ?? []);
     }
 }

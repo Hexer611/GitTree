@@ -268,19 +268,23 @@
                                     <TextBlock Classes="section" Text="GRAPH" Margin="0" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Border>
-                            <ListBox x:Name="CommitList"
+                            <ListBox x:Name="CommitList" Classes="commits"
                                      ItemsSource="{Binding Commits}"
                                      SelectedItem="{Binding SelectedCommit}"
-                                     AutoScrollToSelectedItem="True">
+                                     AutoScrollToSelectedItem="True"
+                                     Padding="0">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="core:CommitNode">
-                                        <Grid ColumnDefinitions="132,70,*,150,138" Height="36">
-                                            <controls:GraphRowControl Commit="{Binding}" />
+                                        <Grid ColumnDefinitions="Auto,76,*,140,118" Height="40" ClipToBounds="True">
+                                            <controls:GraphRowControl Commit="{Binding}" VerticalAlignment="Stretch" />
                                             <TextBlock Grid.Column="1" Text="{Binding ShortSha}"
                                                        FontFamily="Cascadia Mono, Consolas, monospace"
-                                                       Foreground="#8B9CFF" VerticalAlignment="Center" FontSize="12" />
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                                <ItemsControl ItemsSource="{Binding Decorations}">
+                                                       Foreground="#8B9CFF" VerticalAlignment="Center" FontSize="12"
+                                                       Margin="6,0,8,0" />
+                                            <Grid Grid.Column="2" ClipToBounds="True" Margin="0,0,10,0"
+                                                  ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                                                <ItemsControl ItemsSource="{Binding Decorations}" Margin="0,0,8,0"
+                                                              MaxWidth="240" ClipToBounds="True">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
                                                             <StackPanel Orientation="Horizontal" Spacing="4" />
@@ -288,20 +292,34 @@
                                                     </ItemsControl.ItemsPanel>
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Border Background="#1A3DDC97" CornerRadius="999" Padding="7,2"
-                                                                    BorderBrush="#333DDC97" BorderThickness="1">
-                                                                <TextBlock Text="{Binding}" FontSize="10" Foreground="#8FF5C6" />
+                                                            <Border CornerRadius="999" Padding="7,2" MaxWidth="220" ClipToBounds="True"
+                                                                    Background="{Binding Converter={x:Static conv:DecorationChipConverter.Background}}"
+                                                                    BorderBrush="{Binding Converter={x:Static conv:DecorationChipConverter.Border}}"
+                                                                    BorderThickness="1"
+                                                                    ToolTip.Tip="{Binding}">
+                                                                <controls:TruncatingTextBlock Text="{Binding}" FontSize="10"
+                                                                           Foreground="{Binding Converter={x:Static conv:DecorationChipConverter.Foreground}}" />
                                                             </Border>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
-                                                <TextBlock Text="{Binding Subject}" TextTrimming="CharacterEllipsis" FontSize="13" />
-                                            </StackPanel>
-                                            <TextBlock Grid.Column="3" Text="{Binding AuthorName}" VerticalAlignment="Center"
-                                                       Foreground="#8B95A8" FontSize="12" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Grid.Column="4" Text="{Binding AuthorDate, StringFormat='{}{0:MMM dd  HH:mm}'}"
+                                                <Border Grid.Column="1" Background="Transparent" ToolTip.Tip="{Binding Subject}">
+                                                    <controls:TruncatingTextBlock Text="{Binding Subject}" FontSize="13.5"
+                                                               VerticalAlignment="Center" />
+                                                </Border>
+                                            </Grid>
+                                            <Border Grid.Column="3" Background="Transparent" ToolTip.Tip="{Binding AuthorName}">
+                                                <controls:TruncatingTextBlock Text="{Binding AuthorName}"
+                                                       VerticalAlignment="Center" Foreground="#8B95A8" FontSize="12"
+                                                       Margin="0,0,8,0" />
+                                            </Border>
+                                            <Border Grid.Column="4" Background="Transparent"
+                                                    ToolTip.Tip="{Binding AuthorDate, StringFormat='{}{0:MMM dd  HH:mm}'}">
+                                                <controls:TruncatingTextBlock
+                                                       Text="{Binding AuthorDate, StringFormat='{}{0:MMM dd  HH:mm}'}"
                                                        VerticalAlignment="Center" Foreground="#667084" FontSize="12"
-                                                       HorizontalAlignment="Right" />
+                                                       HorizontalAlignment="Right" Margin="0,0,12,0" />
+                                            </Border>
                                         </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -396,7 +414,8 @@
                                     <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="#243044" BorderThickness="0,0,0,1">
                                         <DockPanel>
                                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
-                                                <Button Classes="ghost tiny" Content="Stage" Command="{Binding StageCommand}" />
+                                                <Button Classes="ghost tiny" Content="Stage" Command="{Binding StageCommand}"
+                                                        ToolTip.Tip="Stage selected files. Ctrl+click or Shift+click to select several." />
                                                 <Button Classes="ghost tiny" Content="All" Command="{Binding StageAllCommand}" />
                                                 <Button Classes="danger tiny" Content="Discard" Command="{Binding DiscardCommand}" />
                                             </StackPanel>
@@ -408,11 +427,14 @@
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
-                                    <ListBox ItemsSource="{Binding Unstaged}" SelectedItem="{Binding SelectedUnstaged}">
+                                    <ListBox Classes="files" ItemsSource="{Binding Unstaged}"
+                                             SelectedItem="{Binding SelectedUnstaged}"
+                                             SelectionMode="Multiple"
+                                             SelectionChanged="OnUnstagedSelectionChanged">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="core:FileChange">
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <Border Width="20" Height="20" CornerRadius="5"
+                                                <Grid ColumnDefinitions="Auto,*" ClipToBounds="True">
+                                                    <Border Width="20" Height="20" CornerRadius="5" Margin="0,0,8,0"
                                                             Background="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=bg}"
                                                             BorderBrush="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
                                                             BorderThickness="1">
@@ -420,9 +442,11 @@
                                                                    Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
                                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                     </Border>
-                                                    <TextBlock Text="{Binding DisplayPath}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                    <Border Grid.Column="1" Background="Transparent" ToolTip.Tip="{Binding DisplayPath}">
+                                                    <controls:TruncatingTextBlock Text="{Binding DisplayPath}" VerticalAlignment="Center"
                                                                Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=path}" />
-                                                </StackPanel>
+                                                    </Border>
+                                                </Grid>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
@@ -436,7 +460,8 @@
                                     <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="#243044" BorderThickness="0,0,0,1">
                                         <DockPanel>
                                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
-                                                <Button Classes="ghost tiny" Content="Unstage" Command="{Binding UnstageCommand}" />
+                                                <Button Classes="ghost tiny" Content="Unstage" Command="{Binding UnstageCommand}"
+                                                        ToolTip.Tip="Unstage selected files. Ctrl+click or Shift+click to select several." />
                                                 <Button Classes="ghost tiny" Content="All" Command="{Binding UnstageAllCommand}" />
                                             </StackPanel>
                                             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -447,11 +472,14 @@
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
-                                    <ListBox ItemsSource="{Binding Staged}" SelectedItem="{Binding SelectedStaged}">
+                                    <ListBox Classes="files" ItemsSource="{Binding Staged}"
+                                             SelectedItem="{Binding SelectedStaged}"
+                                             SelectionMode="Multiple"
+                                             SelectionChanged="OnStagedSelectionChanged">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="core:FileChange">
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <Border Width="20" Height="20" CornerRadius="5"
+                                                <Grid ColumnDefinitions="Auto,*" ClipToBounds="True">
+                                                    <Border Width="20" Height="20" CornerRadius="5" Margin="0,0,8,0"
                                                             Background="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=bg}"
                                                             BorderBrush="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
                                                             BorderThickness="1">
@@ -459,9 +487,11 @@
                                                                    Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
                                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                     </Border>
-                                                    <TextBlock Text="{Binding DisplayPath}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                    <Border Grid.Column="1" Background="Transparent" ToolTip.Tip="{Binding DisplayPath}">
+                                                    <controls:TruncatingTextBlock Text="{Binding DisplayPath}" VerticalAlignment="Center"
                                                                Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=path}" />
-                                                </StackPanel>
+                                                    </Border>
+                                                </Grid>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
@@ -484,19 +514,21 @@
                         <Border Classes="pane" IsVisible="{Binding IsShowingCommitFiles}">
                             <DockPanel>
                                 <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="#243044" BorderThickness="0,0,0,1">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Classes="section" Text="CHANGED IN COMMIT" Margin="0" VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding SelectedCommit.ShortSha}" FontFamily="Cascadia Mono, Consolas, monospace"
-                                                   Foreground="#8B9CFF" VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding SelectedCommit.Subject}" TextTrimming="CharacterEllipsis"
+                                    <Grid ColumnDefinitions="Auto,Auto,*" ClipToBounds="True">
+                                        <TextBlock Classes="section" Text="CHANGED IN COMMIT" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" Text="{Binding SelectedCommit.ShortSha}" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                   Foreground="#8B9CFF" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <Border Grid.Column="2" Background="Transparent" ToolTip.Tip="{Binding SelectedCommit.Subject}">
+                                            <controls:TruncatingTextBlock Text="{Binding SelectedCommit.Subject}"
                                                    Foreground="#8B95A8" VerticalAlignment="Center" />
-                                    </StackPanel>
+                                        </Border>
+                                    </Grid>
                                 </Border>
-                                <ListBox ItemsSource="{Binding CommitFiles}" SelectedItem="{Binding SelectedCommitFile}">
+                                <ListBox Classes="files" ItemsSource="{Binding CommitFiles}" SelectedItem="{Binding SelectedCommitFile}">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate x:DataType="core:FileChange">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <Border Width="20" Height="20" CornerRadius="5"
+                                            <Grid ColumnDefinitions="Auto,*" ClipToBounds="True">
+                                                <Border Width="20" Height="20" CornerRadius="5" Margin="0,0,8,0"
                                                         Background="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=bg}"
                                                         BorderBrush="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
                                                         BorderThickness="1">
@@ -504,9 +536,11 @@
                                                                Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=fg}"
                                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                 </Border>
-                                                <TextBlock Text="{Binding DisplayPath}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                <Border Grid.Column="1" Background="Transparent" ToolTip.Tip="{Binding DisplayPath}">
+                                                <controls:TruncatingTextBlock Text="{Binding DisplayPath}" VerticalAlignment="Center"
                                                            Foreground="{Binding BadgeChar, Converter={x:Static conv:FileBadgeBrushConverter.Instance}, ConverterParameter=path}" />
-                                            </StackPanel>
+                                                </Border>
+                                            </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>

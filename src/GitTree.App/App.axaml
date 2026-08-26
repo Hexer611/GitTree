@@ -190,6 +190,43 @@
             <Setter Property="Background" Value="Transparent" />
         </Style>
 
+        <Style Selector="ListBox.commits">
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="ListBox.commits ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="ClipToBounds" Value="True" />
+            <Setter Property="MinHeight" Value="40" />
+        </Style>
+        <Style Selector="ListBox.commits ListBoxItem:nth-child(even)">
+            <Setter Property="Background" Value="#08FFFFFF" />
+        </Style>
+        <Style Selector="ListBox.commits ListBoxItem:pointerover">
+            <Setter Property="Background" Value="#12FFFFFF" />
+        </Style>
+        <Style Selector="ListBox.commits ListBoxItem:selected">
+            <Setter Property="Background" Value="#1A3DDC97" />
+        </Style>
+        <Style Selector="ListBox.files ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="ClipToBounds" Value="True" />
+        </Style>
+
+        <Style Selector="ToolTip">
+            <Setter Property="Background" Value="#1A2233" />
+            <Setter Property="BorderBrush" Value="#3A465C" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#E7ECF5" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="MaxWidth" Value="640" />
+        </Style>
+        <Style Selector="ToolTip TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
         <Style Selector="TextBox">
             <Setter Property="Background" Value="#0A0E16" />
             <Setter Property="BorderBrush" Value="#2A354C" />

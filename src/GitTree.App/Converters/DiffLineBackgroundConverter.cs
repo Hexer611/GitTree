@@ -81,3 +81,40 @@ public sealed class FileBadgeBrushConverter : IValueConverter
         _ => Color.Parse("#33F5C542")
     };
 }
+
+public sealed class DecorationChipConverter : IValueConverter
+{
+    public static readonly DecorationChipConverter Background = new("bg");
+    public static readonly DecorationChipConverter Border = new("border");
+    public static readonly DecorationChipConverter Foreground = new("fg");
+
+    private readonly string _part;
+    private DecorationChipConverter(string part) => _part = part;
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var label = value as string ?? "";
+        var (fg, bg, border) = Palette(label);
+        return new SolidColorBrush(_part switch
+        {
+            "bg" => bg,
+            "border" => border,
+            _ => fg
+        });
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+
+    private static (Color Fg, Color Bg, Color Border) Palette(string label)
+    {
+        if (label.Equals("HEAD", StringComparison.OrdinalIgnoreCase)
+            || label.StartsWith("HEAD", StringComparison.OrdinalIgnoreCase))
+            return (Color.Parse("#8FF5C6"), Color.Parse("#333DDC97"), Color.Parse("#663DDC97"));
+        if (label.StartsWith("tag:", StringComparison.OrdinalIgnoreCase))
+            return (Color.Parse("#F5C542"), Color.Parse("#28F5C542"), Color.Parse("#55F5C542"));
+        if (label.Contains('/'))
+            return (Color.Parse("#9BB4FF"), Color.Parse("#285B8DEF"), Color.Parse("#445B8DEF"));
+        return (Color.Parse("#8FF5C6"), Color.Parse("#1A3DDC97"), Color.Parse("#333DDC97"));
+    }
+}

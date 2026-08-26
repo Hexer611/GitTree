@@ -73,7 +73,7 @@ public class GraphLayoutTests
         GraphLayout.Assign(commits);
         Assert.Equal(0, commits[0].Lane);
         Assert.True(commits[0].Edges.Count >= 2);
-        Assert.Contains(commits[0].Edges, e => e.ToLane != commits[0].Lane || e.FromLane == 0);
+        Assert.True(commits[0].TrackCount >= 2);
     }
 
     private static CommitNode Node(string sha, params string[] parents) => new()

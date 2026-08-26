@@ -18,6 +18,8 @@ public partial class MainViewModel : ViewModelBase
     private bool _suppressWatch;
     private int _watchGate;
     private int _refreshSerial;
+    private List<string> _unstagedSelection = [];
+    private List<string> _stagedSelection = [];
 
     public Window? Host { get; set; }
 
@@ -291,19 +293,19 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private Task StageAsync() => MutateAsync(r => r.StageAsync(SelectedPaths(SelectedUnstaged, Unstaged)));
+    private Task StageAsync() => MutateAsync(r => r.StageAsync(SelectedFilePaths(_unstagedSelection, SelectedUnstaged)));
 
     [RelayCommand]
     private Task StageAllAsync() => MutateAsync(r => r.StageAsync(Unstaged.Select(f => f.Path)));
 
     [RelayCommand]
-    private Task UnstageAsync() => MutateAsync(r => r.UnstageAsync(SelectedPaths(SelectedStaged, Staged)));
+    private Task UnstageAsync() => MutateAsync(r => r.UnstageAsync(SelectedFilePaths(_stagedSelection, SelectedStaged)));
 
     [RelayCommand]
     private Task UnstageAllAsync() => MutateAsync(r => r.UnstageAsync(Staged.Select(f => f.Path)));
 
     [RelayCommand]
-    private Task DiscardAsync() => MutateAsync(r => r.DiscardAsync(SelectedPaths(SelectedUnstaged, Unstaged)));
+    private Task DiscardAsync() => MutateAsync(r => r.DiscardAsync(SelectedFilePaths(_unstagedSelection, SelectedUnstaged)));
 
     [RelayCommand]
     private Task CommitAsync()
@@ -639,8 +641,18 @@ public partial class MainViewModel : ViewModelBase
             _suppressWatch = false;
     }
 
-    private static IEnumerable<string> SelectedPaths(FileChange? selected, IEnumerable<FileChange> all)
-        => selected is not null ? [selected.Path] : all.Select(f => f.Path).Take(0);
+    public void SetUnstagedSelection(IEnumerable<FileChange> files) =>
+        _unstagedSelection = files.Select(f => f.Path).Distinct().ToList();
+
+    public void SetStagedSelection(IEnumerable<FileChange> files) =>
+        _stagedSelection = files.Select(f => f.Path).Distinct().ToList();
+
+    private static IEnumerable<string> SelectedFilePaths(IReadOnlyList<string> selected, FileChange? fallback)
+    {
+        if (selected.Count > 0)
+            return selected;
+        return fallback is not null ? [fallback.Path] : [];
+    }
 
     private static void ReplaceTree(ObservableCollection<RefTreeNode> target, IEnumerable<RefTreeNode> items)
     {

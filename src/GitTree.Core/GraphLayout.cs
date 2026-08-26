@@ -52,6 +52,20 @@ public static class GraphLayout
 
             commit.Edges = edges;
         }
+
+        var tracks = 1;
+        foreach (var commit in commits)
+        {
+            var max = commit.Lane;
+            if (commit.PassingLanes.Count > 0)
+                max = Math.Max(max, commit.PassingLanes.Max());
+            if (commit.Edges.Count > 0)
+                max = Math.Max(max, commit.Edges.Max(e => Math.Max(e.FromLane, e.ToLane)));
+            tracks = Math.Max(tracks, max + 1);
+        }
+
+        foreach (var commit in commits)
+            commit.TrackCount = tracks;
     }
 
     private static int FirstFree(List<string?> lanes)

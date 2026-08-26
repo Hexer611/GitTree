@@ -24,6 +24,7 @@ public sealed class CommitNode
     public required string Subject { get; init; }
     public IReadOnlyList<string> Decorations { get; init; } = [];
     public int Lane { get; set; }
+    public int TrackCount { get; set; }
     public IReadOnlyList<int> PassingLanes { get; set; } = [];
     public IReadOnlyList<GraphEdge> Edges { get; set; } = [];
 
