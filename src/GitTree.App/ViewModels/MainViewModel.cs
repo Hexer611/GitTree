@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -618,15 +619,64 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private Task ImportWorktreeChangesAsync()
+    private async Task ImportWorktreeChangesAsync()
     {
         if (SelectedWorktree is null || SelectedWorktree.IsCurrent)
         {
             ErrorMessage = "Select another worktree to bring changes from.";
-            return Task.CompletedTask;
+            return;
         }
 
-        return MutateAsync(r => r.ImportChangesFromWorktreeAsync(SelectedWorktree));
+        if (_repo is null)
+            return;
+
+        WorktreeImportPreview preview;
+        try
+        {
+            IsBusy = true;
+            ErrorMessage = "";
+            preview = await _repo.GetWorktreeImportPreviewAsync(SelectedWorktree);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+            return;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        WorktreeImportSelection? selection = null;
+        if (Host is not null)
+        {
+            var dialogVm = new WorktreeImportViewModel(preview);
+            var window = new WorktreeImportWindow { DataContext = dialogVm };
+            await window.ShowDialog(Host);
+            if (!dialogVm.Confirmed)
+                return;
+            selection = dialogVm.ToSelection();
+            if (selection.IsEmpty)
+                return;
+        }
+
+        var source = SelectedWorktree;
+        _pendingStatus = selection is null || selection.MergeBranch
+            ? $"Merged {source.Branch ?? source.FolderName} into the current branch."
+            : $"Brought {DescribeImport(selection)} from {source.FolderName}.";
+        await MutateAsync(r => r.ImportChangesFromWorktreeAsync(source, selection));
+    }
+
+    private static string DescribeImport(WorktreeImportSelection selection)
+    {
+        var parts = new List<string>();
+        if (selection.MergeBranch)
+            parts.Add("the branch");
+        if (selection.FilePaths.Count == 1)
+            parts.Add("1 file");
+        else if (selection.FilePaths.Count > 1)
+            parts.Add($"{selection.FilePaths.Count} files");
+        return parts.Count == 0 ? "nothing" : string.Join(" and ", parts);
     }
 
     [RelayCommand]
@@ -838,6 +888,43 @@ public partial class MainViewModel : ViewModelBase
 
     public void SetStagedSelection(IEnumerable<FileChange> files) =>
         _stagedSelection = files.Select(f => f.Path).Distinct().ToList();
+
+    public void OpenWorkingFile(FileChange? file)
+    {
+        if (file is null || _repo is null)
+            return;
+
+        var full = Path.GetFullPath(Path.Combine(_repo.WorkingDirectory, file.Path.Replace('/', Path.DirectorySeparatorChar)));
+        var root = Path.GetFullPath(_repo.WorkingDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
+            ErrorMessage = "That path is outside the repository.";
+            return;
+        }
+
+        if (!File.Exists(full))
+        {
+            ErrorMessage = file.IndexStatus == FileChangeKind.Deleted || file.WorkTreeStatus == FileChangeKind.Deleted
+                ? "That file was deleted, so it cannot be opened."
+                : "That file is not on disk.";
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = full,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+    }
 
     private static IEnumerable<string> SelectedFilePaths(IReadOnlyList<string> selected, FileChange? fallback)
     {

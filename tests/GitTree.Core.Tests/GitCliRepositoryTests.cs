@@ -87,17 +87,103 @@ public class GitCliRepositoryTests
             var other = snap.Worktrees.Single(w => !w.IsCurrent);
             Assert.Equal("other", other.Branch);
 
+            var preview = await repo.GetWorktreeImportPreviewAsync(other);
+            Assert.Contains(preview.Commits, c => c.Subject == "other change");
+            Assert.Contains(preview.Files, f => f.Path == "extra.txt");
+
             await repo.ImportChangesFromWorktreeAsync(other);
-            var after = await repo.RefreshAsync();
-            Assert.Contains(after.Commits, c => c.Subject == "other change");
-            Assert.True(File.Exists(Path.Combine(root, "extra.txt")));
-            Assert.Equal("other\n", (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n"));
 
             Assert.True(other.CanRemove);
             Assert.False(snap.Worktrees.Single(w => w.IsCurrent).CanRemove);
             await repo.RemoveWorktreeAsync(other);
             var remaining = await repo.RefreshAsync();
             Assert.DoesNotContain(remaining.Worktrees, w => string.Equals(w.Path, other.Path, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            TryDelete(wt);
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task ImportsOnlySelectedWorktreeFiles()
+    {
+        var root = CreateTempRepo();
+        var wt = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + "-wt");
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "base\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("base");
+            Run(root, "branch", "other");
+            Run(root, "worktree", "add", wt, "other");
+
+            await File.WriteAllTextAsync(Path.Combine(wt, "a.txt"), "other\n");
+            Run(wt, "add", "a.txt");
+            Run(wt, "commit", "-m", "other change");
+            await File.WriteAllTextAsync(Path.Combine(wt, "keep.txt"), "keep\n");
+            await File.WriteAllTextAsync(Path.Combine(wt, "skip.txt"), "skip\n");
+
+            var snap = await repo.RefreshAsync();
+            var other = snap.Worktrees.Single(w => !w.IsCurrent);
+            await repo.ImportChangesFromWorktreeAsync(other, new WorktreeImportSelection
+            {
+                FilePaths = ["keep.txt"]
+            });
+
+            var after = await repo.RefreshAsync();
+            Assert.True(File.Exists(Path.Combine(root, "keep.txt")));
+            Assert.False(File.Exists(Path.Combine(root, "skip.txt")));
+            Assert.Equal("base\n", (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n"));
+        }
+        finally
+        {
+            TryDelete(wt);
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task ImportsMarkdownAndJsonWhenBasesDiverge()
+    {
+        var root = CreateTempRepo();
+        var wt = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + "-wt");
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "README.md"), "from main\n");
+            await File.WriteAllTextAsync(Path.Combine(root, "config.json"), """{"name":"main"}""" + "\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["README.md", "config.json"]);
+            await repo.CommitAsync("main files");
+            Run(root, "branch", "other");
+            Run(root, "worktree", "add", wt, "other");
+
+            await File.WriteAllTextAsync(Path.Combine(wt, "README.md"), "from other\n");
+            await File.WriteAllTextAsync(Path.Combine(wt, "config.json"), """{"name":"other"}""" + "\n");
+            Run(wt, "add", "README.md", "config.json");
+            Run(wt, "commit", "-m", "other files");
+            await File.WriteAllTextAsync(Path.Combine(wt, "README.md"), "from other\nextra heading\n");
+            await File.WriteAllTextAsync(Path.Combine(wt, "config.json"), """{"name":"other","ok":true}""" + "\n");
+
+            var snap = await repo.RefreshAsync();
+            var other = snap.Worktrees.Single(w => !w.IsCurrent);
+            await repo.ImportChangesFromWorktreeAsync(other, new WorktreeImportSelection
+            {
+                FilePaths = ["README.md", "config.json"]
+            });
+
+            var after = await repo.RefreshAsync();
+            Assert.Contains(after.Changes, c => c.IsConflict && c.Path == "README.md");
+            Assert.Contains(after.Changes, c => c.IsConflict && c.Path == "config.json");
+
+            var readme = (await File.ReadAllTextAsync(Path.Combine(root, "README.md"))).Replace("\r\n", "\n");
+            var json = (await File.ReadAllTextAsync(Path.Combine(root, "config.json"))).Replace("\r\n", "\n");
+            Assert.NotEqual("from main\n", readme);
+            Assert.NotEqual("""{"name":"main"}""" + "\n", json);
+            Assert.Contains("extra heading", readme);
+            Assert.Contains("ok", json);
         }
         finally
         {

@@ -81,6 +81,25 @@ public partial class MainWindow : Window
             vm.SetStagedSelection(list.SelectedItems?.OfType<FileChange>() ?? []);
     }
 
+    private void OnUnstagedDoubleTapped(object? sender, TappedEventArgs e) =>
+        OpenListFile(sender, e);
+
+    private void OnStagedDoubleTapped(object? sender, TappedEventArgs e) =>
+        OpenListFile(sender, e);
+
+    private void OpenListFile(object? sender, TappedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+            return;
+
+        var visual = e.Source as Visual;
+        var item = visual?.FindAncestorOfType<ListBoxItem>(includeSelf: true);
+        var file = item?.DataContext as FileChange
+                   ?? (sender as ListBox)?.SelectedItem as FileChange;
+        if (file is not null)
+            vm.OpenWorkingFile(file);
+    }
+
     private void OnSelectAllUnstaged(object? sender, RoutedEventArgs e) =>
         SelectAllFiles("UnstagedList", (vm, files) => vm.SetUnstagedSelection(files));
 

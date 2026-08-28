@@ -284,7 +284,8 @@
                                     </TreeView>
                                     <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,8,0,4">
                                         <Button Classes="ghost tiny" Content="Switch" Command="{Binding SwitchWorktreeCommand}" />
-                                        <Button Classes="accent tiny" Content="Get changes" Command="{Binding ImportWorktreeChangesCommand}" />
+                                        <Button Classes="accent tiny" Content="Get changes" Command="{Binding ImportWorktreeChangesCommand}"
+                                                ToolTip.Tip="Merge the selected worktree into the current branch" />
                                     </StackPanel>
                                 </StackPanel>
                             </Expander>
@@ -480,7 +481,8 @@
                                     <ListBox x:Name="UnstagedList" Classes="files" ItemsSource="{Binding Unstaged}"
                                              SelectedItem="{Binding SelectedUnstaged}"
                                              SelectionMode="Multiple"
-                                             SelectionChanged="OnUnstagedSelectionChanged">
+                                             SelectionChanged="OnUnstagedSelectionChanged"
+                                             DoubleTapped="OnUnstagedDoubleTapped">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="core:FileChange">
                                                 <Border CornerRadius="6" Padding="6,5"
@@ -529,7 +531,8 @@
                                     <ListBox x:Name="StagedList" Classes="files" ItemsSource="{Binding Staged}"
                                              SelectedItem="{Binding SelectedStaged}"
                                              SelectionMode="Multiple"
-                                             SelectionChanged="OnStagedSelectionChanged">
+                                             SelectionChanged="OnStagedSelectionChanged"
+                                             DoubleTapped="OnStagedDoubleTapped">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="core:FileChange">
                                                 <Grid ColumnDefinitions="Auto,*" ClipToBounds="True">

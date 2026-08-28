@@ -34,7 +34,7 @@ public sealed class GitCliRepository : IGitRepository
         await Task.WhenAll(statusTask, headTask, branchTask, branchesTask, tagsTask, remotesTask, stashTask, worktreesTask);
 
         var statusText = statusTask.Result;
-        var changes = StatusPorcelainParser.Parse(statusText);
+        var changes = await FlagWorkingTreeConflictsAsync(StatusPorcelainParser.Parse(statusText), cancellationToken);
         var head = headTask.Result.Trim();
         var branch = branchTask.Result.Trim();
         var detached = branch is "HEAD" or "";
@@ -176,47 +176,305 @@ public sealed class GitCliRepository : IGitRepository
     public Task StashDropAsync(int index, CancellationToken cancellationToken = default)
         => _git.RunAsync(["stash", "drop", $"stash@{{{index}}}"], cancellationToken: cancellationToken);
 
-    public async Task ImportChangesFromWorktreeAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default)
+    public async Task<WorktreeImportPreview> GetWorktreeImportPreviewAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default)
+    {
+        var other = RequireOtherWorktree(worktree);
+        var commits = await ListUniqueCommitsAsync(worktree, cancellationToken);
+        var status = await _git.RunAsync(
+            ["status", "--porcelain=v1", "-uall", "--untracked-files=all"],
+            throwOnError: false,
+            cancellationToken: cancellationToken,
+            workingDirectory: other);
+        return new WorktreeImportPreview
+        {
+            Worktree = worktree,
+            Commits = commits,
+            Files = StatusPorcelainParser.Parse(status)
+        };
+    }
+
+    public async Task ImportChangesFromWorktreeAsync(WorktreeInfo worktree, WorktreeImportSelection? selection = null, CancellationToken cancellationToken = default)
+    {
+        var other = RequireOtherWorktree(worktree);
+        var unique = await ListUniqueCommitsAsync(worktree, cancellationToken);
+        var shouldMerge = (selection is null || selection.MergeBranch)
+                          && unique.Count > 0
+                          && !string.IsNullOrWhiteSpace(worktree.MergeRef);
+
+        GitException? commitError = null;
+        if (shouldMerge)
+        {
+            try
+            {
+                await MergeAsync(worktree.MergeRef, cancellationToken);
+            }
+            catch (GitException ex)
+            {
+                commitError = ex;
+            }
+        }
+
+        if (selection is null)
+            await ApplyAllWorktreeFilesAsync(other, cancellationToken);
+        else
+            await ApplySelectedWorktreeFilesAsync(other, selection.FilePaths, cancellationToken);
+
+        if (commitError is not null)
+            throw commitError;
+    }
+
+    private string RequireOtherWorktree(WorktreeInfo worktree)
     {
         var other = Path.GetFullPath(worktree.Path);
         if (string.Equals(other, WorkingDirectory, StringComparison.OrdinalIgnoreCase))
             throw new GitException("worktree import", 1, "That worktree is already the current one.");
+        return other;
+    }
 
-        GitException? mergeError = null;
-        var mergeRef = worktree.MergeRef;
-        if (!string.IsNullOrWhiteSpace(mergeRef))
+    private async Task<IReadOnlyList<WorktreeImportCommit>> ListUniqueCommitsAsync(WorktreeInfo worktree, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(worktree.HeadSha))
+            return [];
+
+        var output = await _git.RunAsync(
+            ["log", "--reverse", "--pretty=format:%H%x1f%s", $"HEAD..{worktree.HeadSha}"],
+            throwOnError: false,
+            cancellationToken: cancellationToken);
+        var list = new List<WorktreeImportCommit>();
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            try
-            {
-                await MergeAsync(mergeRef, cancellationToken);
-            }
-            catch (GitException ex)
-            {
-                mergeError = ex;
-            }
+            var parts = line.Split('\u001f');
+            if (parts.Length < 2 || parts[0].Length < 4)
+                continue;
+            list.Add(new WorktreeImportCommit { Sha = parts[0], Subject = parts[1] });
         }
 
-        var diff = await _git.RunAsync(
-            ["diff", "HEAD"],
+        return list;
+    }
+
+    private async Task ApplyAllWorktreeFilesAsync(string other, CancellationToken cancellationToken)
+    {
+        var status = await ReadOtherStatusAsync(other, cancellationToken);
+        await ImportTrackedFilesAsync(other, status, cancellationToken);
+        await CopyUntrackedAsync(other, null, cancellationToken);
+    }
+
+    private async Task ApplySelectedWorktreeFilesAsync(string other, IReadOnlyList<string> filePaths, CancellationToken cancellationToken)
+    {
+        if (filePaths.Count == 0)
+            return;
+
+        var selected = filePaths
+            .Select(p => p.Replace('\\', '/'))
+            .Where(p => p.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var status = (await ReadOtherStatusAsync(other, cancellationToken))
+            .Where(f => selected.Contains(f.Path))
+            .ToList();
+        var tracked = status.Where(f => f.IndexStatus != FileChangeKind.Untracked).ToList();
+        await ImportTrackedFilesAsync(other, tracked, cancellationToken);
+        await CopyUntrackedAsync(other, selected, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<FileChange>> ReadOtherStatusAsync(string other, CancellationToken cancellationToken)
+    {
+        var text = await _git.RunAsync(
+            ["status", "--porcelain=v1", "-uall", "--untracked-files=all"],
             throwOnError: false,
             cancellationToken: cancellationToken,
             workingDirectory: other);
-        if (!string.IsNullOrWhiteSpace(diff))
+        return StatusPorcelainParser.Parse(text);
+    }
+
+    private async Task ImportTrackedFilesAsync(string other, IReadOnlyList<FileChange> files, CancellationToken cancellationToken)
+    {
+        foreach (var file in files)
         {
-            await _git.RunWithInputAsync(
-                ["apply", "--3way", "--whitespace=nowarn"],
-                diff,
-                throwOnError: true,
-                cancellationToken);
+            if (file.IndexStatus == FileChangeKind.Untracked)
+                continue;
+            await ImportTrackedFileAsync(other, file, cancellationToken);
+        }
+    }
+
+    private async Task ImportTrackedFileAsync(string other, FileChange file, CancellationToken cancellationToken)
+    {
+        var relative = file.Path.Replace('\\', '/');
+        var source = CombineUnderRoot(other, relative);
+        var dest = CombineUnderRoot(WorkingDirectory, relative);
+        var deleted = file.IndexStatus == FileChangeKind.Deleted
+                      || file.WorkTreeStatus == FileChangeKind.Deleted
+                      || !File.Exists(source);
+
+        if (deleted)
+        {
+            if (File.Exists(dest))
+                File.Delete(dest);
+            return;
         }
 
+        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+        if (!string.IsNullOrWhiteSpace(file.OldPath))
+        {
+            var oldDest = CombineUnderRoot(WorkingDirectory, file.OldPath);
+            if (File.Exists(oldDest) && !string.Equals(oldDest, dest, StringComparison.OrdinalIgnoreCase))
+                File.Delete(oldDest);
+        }
+
+        var inHead = await ExistsInHeadAsync(other, relative, cancellationToken);
+        if (!File.Exists(dest) || !inHead)
+        {
+            File.Copy(source, dest, overwrite: true);
+            return;
+        }
+
+        var baseTemp = Path.GetTempFileName();
+        var oursTemp = Path.GetTempFileName();
+        try
+        {
+            File.Copy(dest, oursTemp, overwrite: true);
+            var baseText = await _git.RunAsync(
+                ["show", $"HEAD:{relative}"],
+                throwOnError: false,
+                cancellationToken: cancellationToken,
+                workingDirectory: other);
+            await File.WriteAllTextAsync(baseTemp, baseText, cancellationToken);
+            await _git.RunAsync(
+                ["merge-file", "-L", "current", "-L", "base", "-L", "other", dest, baseTemp, source],
+                throwOnError: false,
+                cancellationToken: cancellationToken);
+            if (await FileHasConflictMarkersAsync(dest, cancellationToken))
+                await RecordUnmergedIndexAsync(relative, baseTemp, oursTemp, source, cancellationToken);
+        }
+        catch
+        {
+            File.Copy(source, dest, overwrite: true);
+        }
+        finally
+        {
+            try { File.Delete(baseTemp); } catch { /* temp cleanup */ }
+            try { File.Delete(oursTemp); } catch { /* temp cleanup */ }
+        }
+    }
+
+    private async Task RecordUnmergedIndexAsync(
+        string relative,
+        string baseFile,
+        string oursFile,
+        string theirsFile,
+        CancellationToken cancellationToken)
+    {
+        var mode = await ReadIndexModeAsync(relative, cancellationToken);
+        var baseSha = (await _git.RunAsync(["hash-object", "-w", baseFile], cancellationToken: cancellationToken)).Trim();
+        var oursSha = (await _git.RunAsync(["hash-object", "-w", oursFile], cancellationToken: cancellationToken)).Trim();
+        var theirsSha = (await _git.RunAsync(["hash-object", "-w", theirsFile], cancellationToken: cancellationToken)).Trim();
+        var info =
+            $"0 0000000000000000000000000000000000000000\t{relative}\n" +
+            $"{mode} {baseSha} 1\t{relative}\n" +
+            $"{mode} {oursSha} 2\t{relative}\n" +
+            $"{mode} {theirsSha} 3\t{relative}\n";
+        await _git.RunWithInputAsync(["update-index", "--index-info"], info, throwOnError: false, cancellationToken);
+    }
+
+    private async Task<string> ReadIndexModeAsync(string relative, CancellationToken cancellationToken)
+    {
+        var output = await _git.RunAsync(["ls-files", "-s", "--", relative], throwOnError: false, cancellationToken: cancellationToken);
+        var line = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+        if (line is null)
+            return "100644";
+        var space = line.IndexOf(' ');
+        return space == 6 ? line[..space] : "100644";
+    }
+
+    private async Task<IReadOnlyList<FileChange>> FlagWorkingTreeConflictsAsync(
+        IReadOnlyList<FileChange> changes,
+        CancellationToken cancellationToken)
+    {
+        var list = new List<FileChange>(changes.Count);
+        foreach (var change in changes)
+        {
+            if (change.IsConflict || change.IndexStatus == FileChangeKind.Untracked)
+            {
+                list.Add(change);
+                continue;
+            }
+
+            var full = CombineUnderRoot(WorkingDirectory, change.Path);
+            if (await FileHasConflictMarkersAsync(full, cancellationToken))
+                list.Add(change.WithConflict());
+            else
+                list.Add(change);
+        }
+
+        return list;
+    }
+
+    private static async Task<bool> FileHasConflictMarkersAsync(string fullPath, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(fullPath))
+            return false;
+        await using var stream = File.OpenRead(fullPath);
+        var length = (int)Math.Min(stream.Length, 512 * 1024);
+        var buffer = new byte[length];
+        var read = await stream.ReadAsync(buffer.AsMemory(0, length), cancellationToken);
+        var text = System.Text.Encoding.UTF8.GetString(buffer.AsSpan(0, read));
+        return text.Contains("<<<"+"<"+"<<<") && text.Contains(">>>"+">"+">>>");
+    }
+
+    private async Task<bool> ExistsInHeadAsync(string other, string relative, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _git.RunAsync(
+                ["cat-file", "-e", $"HEAD:{relative}"],
+                throwOnError: true,
+                cancellationToken: cancellationToken,
+                workingDirectory: other);
+            return true;
+        }
+        catch (GitException)
+        {
+            return false;
+        }
+    }
+
+    private static string CombineUnderRoot(string root, string relative)
+    {
+        var full = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+        var prefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                     + Path.DirectorySeparatorChar;
+        if (!full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(full, root, StringComparison.OrdinalIgnoreCase))
+            throw new GitException("worktree import", 1, "Path escapes the repository.");
+        return full;
+    }
+
+    private async Task<List<string>> ListUntrackedAsync(string other, CancellationToken cancellationToken)
+    {
         var untracked = await _git.RunAsync(
             ["ls-files", "-o", "--exclude-standard"],
             throwOnError: false,
             cancellationToken: cancellationToken,
             workingDirectory: other);
-        foreach (var relative in untracked.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        return untracked
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(p => p.Replace('\\', '/'))
+            .ToList();
+    }
+
+    private async Task CopyUntrackedAsync(string other, IReadOnlyList<string>? onlyPaths, CancellationToken cancellationToken)
+    {
+        var relatives = await ListUntrackedAsync(other, cancellationToken);
+        IEnumerable<string> toCopy = relatives;
+        if (onlyPaths is not null)
         {
+            var allow = onlyPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            toCopy = relatives.Where(allow.Contains);
+        }
+
+        foreach (var relative in toCopy)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             var source = Path.GetFullPath(Path.Combine(other, relative));
             var dest = Path.GetFullPath(Path.Combine(WorkingDirectory, relative));
             if (!dest.StartsWith(WorkingDirectory, StringComparison.OrdinalIgnoreCase) || !File.Exists(source))
@@ -224,9 +482,6 @@ public sealed class GitCliRepository : IGitRepository
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
             File.Copy(source, dest, overwrite: true);
         }
-
-        if (mergeError is not null)
-            throw mergeError;
     }
 
     public Task RemoveWorktreeAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default)
@@ -452,3 +707,6 @@ public sealed class GitCliRepository : IGitRepository
 
     private static string Truncate(string sha) => sha.Length >= 7 ? sha[..7] : sha;
 }
+
+
+

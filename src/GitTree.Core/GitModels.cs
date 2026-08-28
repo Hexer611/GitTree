@@ -101,7 +101,8 @@ public interface IGitRepository : IDisposable
     Task StashApplyAsync(int index, CancellationToken cancellationToken = default);
     Task StashDropAsync(int index, CancellationToken cancellationToken = default);
 
-    Task ImportChangesFromWorktreeAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default);
+    Task<WorktreeImportPreview> GetWorktreeImportPreviewAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default);
+    Task ImportChangesFromWorktreeAsync(WorktreeInfo worktree, WorktreeImportSelection? selection = null, CancellationToken cancellationToken = default);
     Task RemoveWorktreeAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default);
 
     Task MergeAsync(string branch, CancellationToken cancellationToken = default);

@@ -62,4 +62,13 @@ public sealed class FileChange
             };
         }
     }
+
+    public FileChange WithConflict() => new()
+    {
+        Path = Path,
+        OldPath = OldPath,
+        IndexStatus = FileChangeKind.Unmerged,
+        WorkTreeStatus = FileChangeKind.Unmerged,
+        IsConflict = true
+    };
 }
