@@ -24,4 +24,19 @@ public static class GitDir
 
         return git;
     }
+
+    public static string ResolveCommonDir(string gitDir)
+    {
+        var file = Path.Combine(gitDir, "commondir");
+        if (!File.Exists(file))
+            return Path.GetFullPath(gitDir);
+
+        var raw = File.ReadAllText(file).Trim();
+        if (string.IsNullOrWhiteSpace(raw))
+            return Path.GetFullPath(gitDir);
+
+        return Path.IsPathRooted(raw)
+            ? Path.GetFullPath(raw)
+            : Path.GetFullPath(Path.Combine(gitDir, raw));
+    }
 }

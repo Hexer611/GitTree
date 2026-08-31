@@ -65,6 +65,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _behindBadge = "";
 
     private string? _pendingStatus;
+    private bool _suppressRecentSelect;
 
     public ObservableCollection<RecentRepoItem> RecentRepositories { get; } = [];
     public ObservableCollection<CommitNode> Commits { get; } = [];
@@ -100,12 +101,13 @@ public partial class MainViewModel : ViewModelBase
 
     public MainViewModel()
     {
-        foreach (var path in _settings.Load().RecentRepositories)
+        var projects = _settings.LoadRecentProjects();
+        foreach (var path in projects)
         {
             RecentRepositories.Add(new RecentRepoItem
             {
                 Path = path,
-                Name = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+                Name = GitRepositoryLocator.FolderName(path)
             });
         }
 
@@ -161,11 +163,14 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedRecentChanged(RecentRepoItem? value)
     {
-        if (value is null || !Directory.Exists(value.Path))
+        if (_suppressRecentSelect || value is null || !Directory.Exists(value.Path))
             return;
-        if (string.Equals(RepoPath, value.Path, StringComparison.OrdinalIgnoreCase))
+        if (HasRepo && GitRepositoryLocator.IsSameProject(RepoPath, value.Path))
             return;
-        _ = OpenRepositoryAsync(value.Path);
+
+        // ComboBox selection must finish before we touch the recents list.
+        var path = value.Path;
+        Dispatcher.UIThread.Post(() => _ = OpenRepositoryAsync(path, bumpRecent: false));
     }
 
     partial void OnSelectedLocalNodeChanged(RefTreeNode? value)
@@ -259,7 +264,9 @@ public partial class MainViewModel : ViewModelBase
         await window.ShowDialog(Host);
     }
 
-    public async Task OpenRepositoryAsync(string path)
+    public Task OpenRepositoryAsync(string path) => OpenRepositoryAsync(path, bumpRecent: true);
+
+    public async Task OpenRepositoryAsync(string path, bool bumpRecent)
     {
         var root = GitRepositoryLocator.FindRoot(path);
         if (root is null)
@@ -272,11 +279,11 @@ public partial class MainViewModel : ViewModelBase
         _repo?.Dispose();
         _repo = new GitCliRepository(root, new LibGit2HistoryReader());
         _settings.RememberRepository(root);
-        RememberRecent(root);
+        RememberRecent(root, bumpRecent);
         HasRecents = RecentRepositories.Count > 0;
         HasRepo = true;
         RepoPath = root;
-        WindowTitle = $"GitTree — {Path.GetFileName(root)}";
+        WindowTitle = $"GitTree — {GitRepositoryLocator.FolderName(root)}";
         _watcher = new GitRepositoryWatcher(root);
         _watcher.Changed += (_, _) =>
         {
@@ -288,24 +295,85 @@ public partial class MainViewModel : ViewModelBase
         _ = LoadRecentDetailsAsync();
     }
 
-    private void RememberRecent(string root)
+    private void RememberRecent(string openedRoot, bool bump)
     {
-        var existing = RecentRepositories.FirstOrDefault(r =>
-            string.Equals(r.Path, root, StringComparison.OrdinalIgnoreCase));
-        if (existing is not null)
-            RecentRepositories.Remove(existing);
-        else
-        {
-            existing = new RecentRepoItem
-            {
-                Path = root,
-                Name = Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
-            };
-        }
+        var projectRoot = GitRepositoryLocator.ResolveProjectForRecents(
+            openedRoot, RecentRepositories.Select(r => r.Path));
 
-        RecentRepositories.Insert(0, existing);
-        while (RecentRepositories.Count > 12)
-            RecentRepositories.RemoveAt(RecentRepositories.Count - 1);
+        _suppressRecentSelect = true;
+        try
+        {
+            DropWorktreesFromRecents();
+
+            if (projectRoot is null)
+            {
+                var current = RecentRepositories.FirstOrDefault(r =>
+                    GitRepositoryLocator.IsSameProject(r.Path, openedRoot));
+                if (current is not null)
+                    SyncSelectedRecent(current);
+                return;
+            }
+
+            var existing = RecentRepositories.FirstOrDefault(r =>
+                GitRepositoryLocator.PathsEqual(r.Path, projectRoot)
+                || GitRepositoryLocator.IsSameProject(r.Path, projectRoot));
+
+            if (existing is null)
+            {
+                existing = new RecentRepoItem
+                {
+                    Path = projectRoot,
+                    Name = GitRepositoryLocator.FolderName(projectRoot)
+                };
+                RecentRepositories.Insert(0, existing);
+            }
+            else
+            {
+                existing.Path = projectRoot;
+                existing.Name = GitRepositoryLocator.FolderName(projectRoot);
+                var index = RecentRepositories.IndexOf(existing);
+                if (bump && index > 0)
+                    RecentRepositories.Move(index, 0);
+            }
+
+            while (RecentRepositories.Count > 12)
+                RecentRepositories.RemoveAt(RecentRepositories.Count - 1);
+
+            SyncSelectedRecent(existing);
+        }
+        finally
+        {
+            var selected = SelectedRecent;
+            Dispatcher.UIThread.Post(() =>
+            {
+                _suppressRecentSelect = true;
+                try
+                {
+                    if (selected is not null)
+                        SyncSelectedRecent(selected);
+                }
+                finally
+                {
+                    _suppressRecentSelect = false;
+                }
+            });
+        }
+    }
+
+    private void DropWorktreesFromRecents()
+    {
+        for (var i = RecentRepositories.Count - 1; i >= 0; i--)
+        {
+            if (GitRepositoryLocator.IsAuxiliaryWorktreePath(RecentRepositories[i].Path))
+                RecentRepositories.RemoveAt(i);
+        }
+    }
+
+    private void SyncSelectedRecent(RecentRepoItem item)
+    {
+        // ComboBox tracks SelectedIndex. Re-assign so it re-resolves after the list moves.
+        SelectedRecent = null;
+        SelectedRecent = item;
     }
 
     private async Task LoadRecentDetailsAsync()
@@ -615,7 +683,7 @@ public partial class MainViewModel : ViewModelBase
     {
         if (SelectedWorktree is null || SelectedWorktree.IsCurrent)
             return;
-        await OpenRepositoryAsync(SelectedWorktree.Path);
+        await OpenRepositoryAsync(SelectedWorktree.Path, bumpRecent: false);
     }
 
     [RelayCommand]

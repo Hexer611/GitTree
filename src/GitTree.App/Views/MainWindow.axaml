@@ -32,7 +32,7 @@
                     <Button Classes="accent" Content="Open repository" Command="{Binding OpenRepositoryCommand}" />
                     <ComboBox Width="280" ItemsSource="{Binding RecentRepositories}"
                               SelectedItem="{Binding SelectedRecent}"
-                              PlaceholderText="Jump to a recent repo">
+                              PlaceholderText="Jump to a project">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:RecentRepoItem">
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" MinHeight="20">
@@ -617,7 +617,7 @@
                             DockPanel.Dock="Right" Padding="18,10" VerticalAlignment="Center" />
                     <StackPanel Spacing="6" VerticalAlignment="Center">
                         <TextBlock Text="Latest repositories" FontSize="26" FontWeight="Bold" />
-                        <TextBlock Text="Pick a recent repo to open it. Branch, last commit, and working-tree status sit next to each name."
+                        <TextBlock Text="Pick a project to open it. Branch, last commit, and working-tree status sit next to each name."
                                    TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" FontSize="14" />
                     </StackPanel>
                 </DockPanel>

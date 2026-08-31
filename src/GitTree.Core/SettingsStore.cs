@@ -63,11 +63,41 @@ public sealed class SettingsStore
     {
         Update(settings =>
         {
-            settings.RecentRepositories.RemoveAll(p =>
-                string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
-            settings.RecentRepositories.Insert(0, path);
-            if (settings.RecentRepositories.Count > 12)
-                settings.RecentRepositories.RemoveRange(12, settings.RecentRepositories.Count - 12);
+            settings.RecentRepositories = GitRepositoryLocator.CollapseToProjects(
+                new[] { path }.Concat(settings.RecentRepositories));
         });
+    }
+
+    public List<string> LoadRecentProjects()
+    {
+        var settings = Load();
+        var projects = GitRepositoryLocator.CollapseToProjects(settings.RecentRepositories);
+        if (!PathListsEqual(settings.RecentRepositories, projects))
+        {
+            try
+            {
+                settings.RecentRepositories = projects;
+                Save(settings);
+            }
+            catch
+            {
+                // Keep the in-memory list even if the file cannot be rewritten.
+            }
+        }
+
+        return projects;
+    }
+
+    private static bool PathListsEqual(IReadOnlyList<string> left, IReadOnlyList<string> right)
+    {
+        if (left.Count != right.Count)
+            return false;
+        for (var i = 0; i < left.Count; i++)
+        {
+            if (!GitRepositoryLocator.PathsEqual(left[i], right[i]))
+                return false;
+        }
+
+        return true;
     }
 }
