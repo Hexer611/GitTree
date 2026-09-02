@@ -319,7 +319,13 @@
                                      ItemsSource="{Binding Commits}"
                                      SelectedItem="{Binding SelectedCommit}"
                                      AutoScrollToSelectedItem="True"
-                                     Padding="0">
+                                     Padding="0"
+                                     ContextRequested="OnCommitListContextRequested">
+                                <ListBox.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Checkout" Command="{Binding CheckoutCommitCommand}" />
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="core:CommitNode">
                                         <Grid ColumnDefinitions="Auto,76,*,140,118" Height="40" ClipToBounds="True">

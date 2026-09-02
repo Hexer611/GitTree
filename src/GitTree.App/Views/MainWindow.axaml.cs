@@ -55,6 +55,21 @@ public partial class MainWindow : Window
             vm.SelectedWorktreeNode = node;
     }
 
+    private void OnCommitListContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is not ListBox list)
+            return;
+
+        var visual = e.Source as Visual;
+        var item = visual?.FindAncestorOfType<ListBoxItem>(includeSelf: true);
+        if (item?.DataContext is not CommitNode commit)
+            return;
+
+        list.SelectedItem = commit;
+        if (DataContext is MainViewModel vm)
+            vm.SelectedCommit = commit;
+    }
+
     private static RefTreeNode? SelectTreeNode(object? sender, ContextRequestedEventArgs e)
     {
         if (sender is not TreeView tree)
