@@ -22,7 +22,8 @@ public sealed class CommitNode
     public required string AuthorEmail { get; init; }
     public required DateTimeOffset AuthorDate { get; init; }
     public required string Subject { get; init; }
-    public IReadOnlyList<string> Decorations { get; init; } = [];
+    public IReadOnlyList<string> Decorations { get; set; } = [];
+    public bool IsHead { get; set; }
     public int Lane { get; set; }
     public int TrackCount { get; set; }
     public IReadOnlyList<int> PassingLanes { get; set; } = [];

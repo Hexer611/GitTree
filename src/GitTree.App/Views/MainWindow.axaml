@@ -309,8 +309,9 @@
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
                                         <Button Classes="ghost tiny" Content="Working tree"
                                                 Command="{Binding ShowWorkingTreeCommand}" />
-                                        <Button Classes="ghost tiny" Content="Checkout commit"
-                                                Command="{Binding CheckoutCommitCommand}" />
+                                        <Button Classes="ghost tiny" Content="Checkout..."
+                                                Command="{Binding CheckoutCommitCommand}"
+                                                ToolTip.Tip="Checkout a branch at the selected commit, or detach if none point here" />
                                     </StackPanel>
                                     <TextBlock Classes="section" Text="GRAPH" Margin="0" VerticalAlignment="Center" />
                                 </DockPanel>
@@ -323,7 +324,10 @@
                                      ContextRequested="OnCommitListContextRequested">
                                 <ListBox.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="Checkout" Command="{Binding CheckoutCommitCommand}" />
+                                        <MenuItem x:Name="CommitCheckoutMenu" Header="Checkout" />
+                                        <MenuItem Header="Reset current branch to this commit..."
+                                                  Command="{Binding ResetToCommitCommand}"
+                                                  IsEnabled="{Binding !IsDetached}" />
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
                                 <ListBox.ItemTemplate>

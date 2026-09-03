@@ -53,10 +53,7 @@ public sealed class GraphRowControl : Control
 
         var midY = Bounds.Height / 2;
         var bottom = Bounds.Height;
-        var isHead = commit.Decorations.Any(d =>
-            d.Equals("HEAD", StringComparison.OrdinalIgnoreCase)
-            || d.StartsWith("HEAD ", StringComparison.OrdinalIgnoreCase)
-            || d.StartsWith("HEAD ->", StringComparison.OrdinalIgnoreCase));
+        var isHead = commit.IsHead;
         var radius = commit.IsMerge ? 6.2 : isHead ? 5.6 : 4.8;
         var cx = X(commit.Lane);
 

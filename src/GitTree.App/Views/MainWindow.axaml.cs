@@ -66,8 +66,32 @@ public partial class MainWindow : Window
             return;
 
         list.SelectedItem = commit;
-        if (DataContext is MainViewModel vm)
-            vm.SelectedCommit = commit;
+        if (DataContext is not MainViewModel vm)
+            return;
+
+        vm.SelectedCommit = commit;
+        FillCheckoutMenu(list.ContextMenu, vm, commit);
+    }
+
+    private static void FillCheckoutMenu(ContextMenu? menu, MainViewModel vm, CommitNode commit)
+    {
+        if (menu is null)
+            return;
+
+        var checkout = menu.Items.OfType<MenuItem>().FirstOrDefault(i => i.Name == "CommitCheckoutMenu");
+        if (checkout is null)
+            return;
+
+        checkout.Items.Clear();
+        foreach (var choice in vm.CheckoutChoicesFor(commit))
+        {
+            checkout.Items.Add(new MenuItem
+            {
+                Header = choice.Label,
+                Command = vm.CheckoutChoiceCommand,
+                CommandParameter = choice
+            });
+        }
     }
 
     private static RefTreeNode? SelectTreeNode(object? sender, ContextRequestedEventArgs e)

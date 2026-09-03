@@ -99,6 +99,18 @@ public class GitLogParserTests
         Assert.Equal("Hello", c.Subject);
         Assert.Contains("main", c.Decorations);
         Assert.Contains("origin/main", c.Decorations);
+        Assert.DoesNotContain("HEAD", c.Decorations);
+        Assert.DoesNotContain("HEAD -> main", c.Decorations);
+    }
+
+    [Fact]
+    public void KeepsHeadDecorationWhenDetached()
+    {
+        var output = $"abc1234\u001f\u001fAda\u001fada@ex.com\u001f2024-01-02T03:04:05+00:00\u001fHello\u001fHEAD, tag: v1\u001e";
+        var commits = GitLogParser.Parse(output);
+        var c = Assert.Single(commits);
+        Assert.Contains("HEAD", c.Decorations);
+        Assert.Contains("tag: v1", c.Decorations);
     }
 }
 
@@ -203,6 +215,74 @@ public class SyncStatusParserTests
         Assert.False(sync.HasUpstream);
         Assert.Equal(0, sync.Ahead);
     }
+
+    [Fact]
+    public void ParsesDetachedAndUnbornHeaders()
+    {
+        var detached = SyncStatusParser.ParsePorcelain("## HEAD (no branch)\n");
+        Assert.Equal("HEAD", detached.Branch);
+        Assert.False(detached.HasUpstream);
+
+        var unborn = SyncStatusParser.ParsePorcelain("## No commits yet on main\n");
+        Assert.Equal("main", unborn.Branch);
+    }
+}
+
+public class HeadRefParserTests
+{
+    [Fact]
+    public void ReadsAttachedBranchFromHeadFile()
+    {
+        var state = HeadRefParser.ParseFile("ref: refs/heads/feature/login\n");
+        Assert.False(state.IsDetached);
+        Assert.Equal("feature/login", state.CurrentBranch);
+    }
+
+    [Fact]
+    public void ReadsDetachedShaFromHeadFile()
+    {
+        var state = HeadRefParser.ParseFile("abcdef1234567890\n");
+        Assert.True(state.IsDetached);
+        Assert.Equal("detached abcdef1", state.CurrentBranch);
+    }
+
+    [Fact]
+    public void PrefersHeadFileOverFailedAbbrevRef()
+    {
+        var state = HeadRefParser.Resolve("ref: refs/heads/main\n", "HEAD", "", null);
+        Assert.False(state.IsDetached);
+        Assert.Equal("main", state.CurrentBranch);
+    }
+
+    [Fact]
+    public void UsesForEachRefWhenHeadFileMissing()
+    {
+        var state = HeadRefParser.Resolve(null, "HEAD", "abc1234", "main");
+        Assert.False(state.IsDetached);
+        Assert.Equal("main", state.CurrentBranch);
+    }
+
+    [Fact]
+    public void StripsHeadChipWhenAttached()
+    {
+        var commit = new CommitNode
+        {
+            Sha = "abcdef1",
+            ParentShas = [],
+            AuthorName = "a",
+            AuthorEmail = "a@a",
+            AuthorDate = DateTimeOffset.UnixEpoch,
+            Subject = "s",
+            Decorations = ["HEAD", "HEAD -> main", "origin/main"]
+        };
+        var head = new HeadState { IsDetached = false, CurrentBranch = "main" };
+        HeadRefParser.ApplyToCommits([commit], head, "abcdef1");
+        Assert.True(commit.IsHead);
+        Assert.Contains("main", commit.Decorations);
+        Assert.Contains("origin/main", commit.Decorations);
+        Assert.DoesNotContain("HEAD", commit.Decorations);
+        Assert.DoesNotContain("HEAD -> main", commit.Decorations);
+    }
 }
 
 
@@ -230,4 +310,91 @@ public class SlashTreeTests
         Assert.Equal("main", tree[2].Name);
         Assert.False(tree[2].IsFolder);
     }
+}
+
+public class CheckoutTargetsTests
+{
+    [Fact]
+    public void ListsLocalBranchesAtCommit()
+    {
+        var choices = CheckoutTargets.ForCommit("aaa1111",
+        [
+            Branch("feature", "aaa1111"),
+            Branch("main", "aaa1111", isCurrent: true),
+            Branch("other", "bbb2222")
+        ]);
+
+        Assert.Equal(2, choices.Count);
+        Assert.Equal("main", choices[0].Label);
+        Assert.Equal("feature", choices[1].Label);
+        Assert.All(choices, c => Assert.False(c.IsDetached));
+    }
+
+    [Fact]
+    public void ListsRemoteBranchesWhenNoLocalMatch()
+    {
+        var choices = CheckoutTargets.ForCommit("aaa1111",
+        [
+            Branch("origin/feature", "aaa1111", isRemote: true),
+            Branch("origin/HEAD", "aaa1111", isRemote: true),
+            Branch("main", "bbb2222", isCurrent: true)
+        ]);
+
+        var choice = Assert.Single(choices);
+        Assert.True(choice.IsRemote);
+        Assert.False(choice.IsDetached);
+        Assert.Equal("origin/feature", choice.Label);
+        Assert.Equal("feature", choice.LocalName);
+    }
+
+    [Fact]
+    public void SkipsRemoteWhenLocalWithSameNameIsAlreadyAtCommit()
+    {
+        var choices = CheckoutTargets.ForCommit("aaa1111",
+        [
+            Branch("main", "aaa1111", isCurrent: true),
+            Branch("origin/main", "aaa1111", isRemote: true)
+        ]);
+
+        var choice = Assert.Single(choices);
+        Assert.False(choice.IsRemote);
+        Assert.Equal("main", choice.Label);
+    }
+
+    [Fact]
+    public void IncludesRemoteWhenLocalExistsOnADifferentCommit()
+    {
+        var choices = CheckoutTargets.ForCommit("aaa1111",
+        [
+            Branch("feature", "bbb2222", isCurrent: true),
+            Branch("origin/feature", "aaa1111", isRemote: true)
+        ]);
+
+        var choice = Assert.Single(choices);
+        Assert.True(choice.IsRemote);
+        Assert.Equal("origin/feature", choice.Label);
+    }
+
+    [Fact]
+    public void OnlyDetachedWhenNoBranchesPointHere()
+    {
+        var choices = CheckoutTargets.ForCommit("ccc3333",
+        [
+            Branch("main", "aaa1111", isCurrent: true)
+        ]);
+
+        var choice = Assert.Single(choices);
+        Assert.True(choice.IsDetached);
+        Assert.Equal("detached", choice.Label);
+        Assert.Equal("ccc3333", choice.RefOrSha);
+    }
+
+    private static BranchRef Branch(string name, string sha, bool isCurrent = false, bool isRemote = false) => new()
+    {
+        Name = name,
+        FullName = isRemote ? $"refs/remotes/{name}" : $"refs/heads/{name}",
+        TipSha = sha,
+        IsRemote = isRemote,
+        IsCurrent = isCurrent
+    };
 }

@@ -23,12 +23,14 @@ public partial class MainViewModel : ViewModelBase
     private bool _preserveError;
     private List<string> _unstagedSelection = [];
     private List<string> _stagedSelection = [];
+    private IReadOnlyList<BranchRef> _branches = [];
 
     public Window? Host { get; set; }
 
     [ObservableProperty] private string _windowTitle = "GitTree";
     [ObservableProperty] private string _repoPath = "No repository open";
     [ObservableProperty] private string _currentBranch = "";
+    [ObservableProperty] private bool _isDetached;
     [ObservableProperty] private string _statusMessage = "Open a Git repository to get started.";
     [ObservableProperty] private string _errorMessage = "";
     [ObservableProperty] private bool _isBusy;
@@ -403,9 +405,10 @@ public partial class MainViewModel : ViewModelBase
             var statusTask = git.RunAsync(["status", "--porcelain=v1"], throwOnError: false);
             await Task.WhenAll(branchTask, logTask, statusTask);
 
-            var branch = branchTask.Result.Trim();
             item.Exists = true;
-            item.Branch = branch is "HEAD" or "" ? "detached" : branch;
+            var headState = HeadRefParser.Resolve(
+                HeadRefParser.TryRead(GitDir.Resolve(item.Path)), branchTask.Result, null, null);
+            item.Branch = headState.IsDetached ? "detached" : headState.CurrentBranch;
 
             var log = logTask.Result.Replace("\r\n", "\n").Trim();
             var logLines = log.Split('\n', 2);
@@ -480,6 +483,7 @@ public partial class MainViewModel : ViewModelBase
     private void ApplySnapshot(RepositorySnapshot snapshot)
     {
         CurrentBranch = snapshot.CurrentBranch;
+        IsDetached = snapshot.IsDetached;
         IsMerging = snapshot.Operation.IsMerging;
         IsRebasing = snapshot.Operation.IsRebasing;
 
@@ -491,6 +495,7 @@ public partial class MainViewModel : ViewModelBase
         Replace(Conflicts, snapshot.Changes.Where(c => c.IsConflict));
         var local = snapshot.Branches.Where(b => !b.IsRemote).ToList();
         var remote = snapshot.Branches.Where(b => b.IsRemote).ToList();
+        _branches = snapshot.Branches;
         ReplaceTree(LocalTree, RefTreeNode.FromBranches(local));
         ReplaceTree(RemoteTree, RefTreeNode.FromBranches(remote));
         ReplaceTree(TagTree, RefTreeNode.FromTags(snapshot.Tags));
@@ -618,11 +623,84 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private Task CheckoutCommitAsync()
+    private async Task CheckoutCommitAsync()
+    {
+        if (SelectedCommit is null || Host is null)
+            return;
+
+        var choices = CheckoutChoicesFor(SelectedCommit);
+        var dialogVm = new CheckoutCommitViewModel(SelectedCommit, choices);
+        var window = new CheckoutCommitWindow { DataContext = dialogVm };
+        await window.ShowDialog(Host);
+        if (!dialogVm.Confirmed || dialogVm.SelectedChoice is null)
+            return;
+
+        await CheckoutChoiceAsync(dialogVm.SelectedChoice);
+    }
+
+    [RelayCommand]
+    private Task CheckoutChoiceAsync(CheckoutChoice? choice)
+    {
+        if (choice is null || string.IsNullOrWhiteSpace(choice.RefOrSha))
+            return Task.CompletedTask;
+
+        if (choice.IsDetached)
+        {
+            _pendingStatus = $"Checked out {ShortSha(choice.RefOrSha)} (detached).";
+            return MutateAsync(r => r.CheckoutAsync(choice.RefOrSha));
+        }
+
+        if (choice.IsRemote)
+        {
+            var local = choice.LocalName;
+            var localExists = _branches.Any(b =>
+                !b.IsRemote && b.Name.Equals(local, StringComparison.OrdinalIgnoreCase));
+            if (localExists)
+            {
+                _pendingStatus = $"Checked out {choice.RefOrSha} (detached; local '{local}' already exists).";
+                return MutateAsync(r => r.CheckoutAsync(choice.RefOrSha));
+            }
+
+            _pendingStatus = $"Checked out {local} from {choice.RefOrSha}.";
+            return MutateAsync(r => r.CreateBranchAsync(local, choice.RefOrSha));
+        }
+
+        _pendingStatus = $"Checked out {choice.RefOrSha}.";
+        return MutateAsync(r => r.CheckoutAsync(choice.RefOrSha));
+    }
+
+    public IReadOnlyList<CheckoutChoice> CheckoutChoicesFor(CommitNode? commit) =>
+        CheckoutTargets.ForCommit(commit?.Sha, _branches);
+
+    private static string ShortSha(string sha) => sha.Length >= 7 ? sha[..7] : sha;
+
+    [RelayCommand]
+    private async Task ResetToCommitAsync()
     {
         if (SelectedCommit is null)
-            return Task.CompletedTask;
-        return MutateAsync(r => r.CheckoutAsync(SelectedCommit.Sha));
+            return;
+
+        if (IsDetached)
+        {
+            ErrorMessage = "Checkout a branch before resetting. Reset moves the current branch pointer.";
+            return;
+        }
+
+        if (Host is null)
+            return;
+
+        var dialogVm = new ResetCommitViewModel(CurrentBranch, SelectedCommit);
+        var window = new ResetCommitWindow { DataContext = dialogVm };
+        await window.ShowDialog(Host);
+        if (!dialogVm.Confirmed)
+            return;
+
+        var commit = SelectedCommit;
+        var mode = dialogVm.SelectedMode.Mode;
+        _pendingStatus = $"Reset {CurrentBranch} to {commit.ShortSha} ({mode.ToString().ToLowerInvariant()}).";
+        await MutateAsync(r => r.ResetAsync(commit.Sha, mode));
+        if (string.IsNullOrWhiteSpace(ErrorMessage))
+            RevealCommit(commit.Sha);
     }
 
     [RelayCommand]

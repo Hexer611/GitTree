@@ -56,7 +56,7 @@ public static class GitLogParser
         return commits;
     }
 
-    private static string CleanDecoration(string value)
+    internal static string CleanDecoration(string value)
     {
         const string headPrefix = "HEAD -> ";
         if (value.StartsWith(headPrefix, StringComparison.Ordinal))

@@ -66,6 +66,13 @@ public enum DiffKind
     Commit
 }
 
+public enum ResetMode
+{
+    Soft,
+    Mixed,
+    Hard
+}
+
 public sealed class DiffRequest
 {
     public required DiffKind Kind { get; init; }
@@ -90,6 +97,7 @@ public interface IGitRepository : IDisposable
     Task CommitAsync(string message, bool amend = false, CancellationToken cancellationToken = default);
 
     Task CheckoutAsync(string refOrSha, CancellationToken cancellationToken = default);
+    Task ResetAsync(string sha, ResetMode mode, CancellationToken cancellationToken = default);
     Task CreateBranchAsync(string name, string? startPoint = null, CancellationToken cancellationToken = default);
     Task DeleteBranchAsync(string name, bool force = false, CancellationToken cancellationToken = default);
 

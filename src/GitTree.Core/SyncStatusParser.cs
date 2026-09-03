@@ -32,6 +32,14 @@ public static class SyncStatusParser
             return SyncStatus.None;
 
         var first = porcelain.Replace("\r\n", "\n").Split('\n')[0].TrimEnd();
+        if (first.StartsWith("## HEAD (no branch)", StringComparison.Ordinal)
+            || first.Equals("## HEAD", StringComparison.Ordinal))
+            return new SyncStatus { Branch = "HEAD" };
+
+        var unborn = Regex.Match(first, @"^## No commits yet on (\S+)");
+        if (unborn.Success)
+            return new SyncStatus { Branch = unborn.Groups[1].Value };
+
         var match = Header.Match(first);
         if (!match.Success)
             return SyncStatus.None;

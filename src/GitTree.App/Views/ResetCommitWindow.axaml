@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GitTree.App.ViewModels"
+        x:Class="GitTree.App.Views.ResetCommitWindow"
+        x:DataType="vm:ResetCommitViewModel"
+        Title="Reset to Commit..."
+        Width="520"
+        SizeToContent="Height"
+        MinWidth="440"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <DockPanel Margin="20">
+        <TextBlock DockPanel.Dock="Top"
+                   Text="Are you sure you want to move the branch pointer?"
+                   FontSize="14" Margin="0,0,0,16" TextWrapping="Wrap" />
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Classes="ghost" Content="Cancel" Command="{Binding CancelCommand}" />
+            <Button Classes="accent" Content="OK" Command="{Binding ConfirmCommand}"
+                    IsVisible="{Binding !IsHard}" />
+            <Button Classes="danger" Content="OK" Command="{Binding ConfirmCommand}"
+                    IsVisible="{Binding IsHard}" />
+        </StackPanel>
+
+        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+            <TextBlock Text="Reset branch:" Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding BranchName}" FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Row="1" Text="To commit:" Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CommitLabel}" FontWeight="SemiBold"
+                       TextWrapping="Wrap" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Row="2" Text="Using mode:" Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Row="2" Grid.Column="1"
+                      ItemsSource="{Binding Modes}"
+                      SelectedItem="{Binding SelectedMode}"
+                      HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ResetModeOption">
+                        <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
+    </DockPanel>
+</Window>

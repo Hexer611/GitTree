@@ -1,5 +1,6 @@
 using GitTree.Core;
 using GitTree.Git.Cli;
+using GitTree.Git.LibGit2;
 
 namespace GitTree.Core.Tests;
 
@@ -188,6 +189,207 @@ public class GitCliRepositoryTests
         finally
         {
             TryDelete(wt);
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task ResetSoftKeepsStagedAndWorktreeChanges()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "one\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("first");
+            var first = (await repo.RefreshAsync()).HeadSha;
+
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "two\n");
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("second");
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "three\n");
+            await repo.StageAsync(["a.txt"]);
+
+            await repo.ResetAsync(first, ResetMode.Soft);
+            var after = await repo.RefreshAsync();
+            Assert.Equal(first, after.HeadSha);
+            Assert.False(after.IsDetached);
+            Assert.Equal("main", after.CurrentBranch);
+            Assert.Contains(after.Changes, c => c.Path == "a.txt" && c.IsStaged);
+            Assert.Equal("three\n", (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n"));
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task ResetMixedKeepsWorktreeAndClearsIndex()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "one\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("first");
+            var first = (await repo.RefreshAsync()).HeadSha;
+
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "two\n");
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("second");
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "three\n");
+            await repo.StageAsync(["a.txt"]);
+
+            await repo.ResetAsync(first, ResetMode.Mixed);
+            var after = await repo.RefreshAsync();
+            Assert.Equal(first, after.HeadSha);
+            Assert.Contains(after.Changes, c => c.Path == "a.txt" && c.IsUnstaged && !c.IsStaged);
+            Assert.Equal("three\n", (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n"));
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task ResetHardDiscardsWorktreeChanges()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "one\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("first");
+            var first = (await repo.RefreshAsync()).HeadSha;
+
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "two\n");
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("second");
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "three\n");
+
+            await repo.ResetAsync(first, ResetMode.Hard);
+            var after = await repo.RefreshAsync();
+            Assert.Equal(first, after.HeadSha);
+            Assert.DoesNotContain(after.Changes, c => c.Path == "a.txt");
+            Assert.Equal("one\n", (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n"));
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task UnbornBranchIsNotDetached()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            using var repo = new GitCliRepository(root);
+            var snap = await repo.RefreshAsync();
+            Assert.False(snap.IsDetached);
+            Assert.Equal("main", snap.CurrentBranch);
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task CheckoutCommitIsDetachedThenBranchCheckoutRecovers()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "one\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("first");
+            var sha = (await repo.RefreshAsync()).HeadSha;
+
+            await repo.CheckoutAsync(sha);
+            var detached = await repo.RefreshAsync();
+            Assert.True(detached.IsDetached);
+            Assert.StartsWith("detached ", detached.CurrentBranch);
+            var headCommit = Assert.Single(detached.Commits, c => c.IsHead);
+            Assert.Contains("HEAD", headCommit.Decorations);
+
+            await repo.CheckoutAsync("main");
+            var attached = await repo.RefreshAsync();
+            Assert.False(attached.IsDetached);
+            Assert.Equal("main", attached.CurrentBranch);
+            var current = Assert.Single(attached.Commits, c => c.IsHead);
+            Assert.Contains("main", current.Decorations);
+            Assert.DoesNotContain("HEAD", current.Decorations);
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task LibGit2HistoryDoesNotMarkAttachedHeadAsDetached()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "one\n");
+            using var repo = new GitCliRepository(root, new LibGit2HistoryReader());
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("first");
+
+            var snap = await repo.RefreshAsync();
+            Assert.False(snap.IsDetached);
+            Assert.Equal("main", snap.CurrentBranch);
+            var current = Assert.Single(snap.Commits, c => c.IsHead);
+            Assert.Contains("main", current.Decorations);
+            Assert.DoesNotContain("HEAD", current.Decorations);
+            Assert.DoesNotContain(current.Decorations, d => d.StartsWith("HEAD ->", StringComparison.Ordinal));
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task CheckoutRemoteTrackingRefCreatesLocalBranch()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "one\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("first");
+            var first = (await repo.RefreshAsync()).HeadSha;
+            Run(root, "branch", "other");
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "two\n");
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("second");
+            Run(root, "update-ref", "refs/remotes/origin/feature", first);
+
+            var snap = await repo.RefreshAsync();
+            var choices = CheckoutTargets.ForCommit(first, snap.Branches);
+            var remote = Assert.Single(choices, c => c.IsRemote);
+            Assert.Equal("origin/feature", remote.RefOrSha);
+            Assert.Equal("feature", remote.LocalName);
+
+            await repo.CreateBranchAsync(remote.LocalName, remote.RefOrSha);
+            var after = await repo.RefreshAsync();
+            Assert.False(after.IsDetached);
+            Assert.Equal("feature", after.CurrentBranch);
+            Assert.Equal(first, after.HeadSha);
+        }
+        finally
+        {
             TryDelete(root);
         }
     }

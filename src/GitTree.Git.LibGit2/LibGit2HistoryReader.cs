@@ -52,7 +52,7 @@ public sealed class LibGit2HistoryReader : IGitHistoryReader
                 list.Add(label);
         }
 
-        if (repo.Head?.Tip is not null)
+        if (repo.Info.IsHeadDetached && repo.Head?.Tip is not null)
             Add(repo.Head.Tip.Sha, "HEAD");
 
         foreach (var branch in repo.Branches)
@@ -60,8 +60,10 @@ public sealed class LibGit2HistoryReader : IGitHistoryReader
             if (branch.Tip is null)
                 continue;
             var name = branch.FriendlyName;
-            if (branch.IsCurrentRepositoryHead)
-                name = $"HEAD -> {branch.FriendlyName}";
+            if (string.IsNullOrWhiteSpace(name)
+                || name.Equals("HEAD", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith("/HEAD", StringComparison.OrdinalIgnoreCase))
+                continue;
             Add(branch.Tip.Sha, name);
         }
 

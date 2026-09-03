@@ -30,14 +30,16 @@ public sealed class GitCliRepository : IGitRepository
         var mergeHead = File.Exists(Path.Combine(gitDir, "MERGE_HEAD"));
         var rebase = Directory.Exists(Path.Combine(gitDir, "rebase-merge"))
                      || Directory.Exists(Path.Combine(gitDir, "rebase-apply"));
+        var headFile = HeadRefParser.TryRead(gitDir);
 
         await Task.WhenAll(statusTask, headTask, branchTask, branchesTask, tagsTask, remotesTask, stashTask, worktreesTask);
 
         var statusText = statusTask.Result;
         var changes = await FlagWorkingTreeConflictsAsync(StatusPorcelainParser.Parse(statusText), cancellationToken);
         var head = headTask.Result.Trim();
-        var branch = branchTask.Result.Trim();
-        var detached = branch is "HEAD" or "";
+        var branches = ParseBranches(branchesTask.Result);
+        var currentFromRefs = branches.FirstOrDefault(b => b.IsCurrent && !b.IsRemote)?.Name;
+        var headState = HeadRefParser.Resolve(headFile, branchTask.Result, head, currentFromRefs);
 
         IReadOnlyList<CommitNode> commits;
         try
@@ -56,12 +58,14 @@ public sealed class GitCliRepository : IGitRepository
             commits = await ReadLogAsync(cancellationToken);
         }
 
+        HeadRefParser.ApplyToCommits(commits, headState, head);
+
         return new RepositorySnapshot
         {
             WorkingDirectory = WorkingDirectory,
             HeadSha = head,
-            CurrentBranch = detached ? $"detached {Truncate(head)}" : branch,
-            IsDetached = detached,
+            CurrentBranch = headState.CurrentBranch,
+            IsDetached = headState.IsDetached,
             Operation = new OperationState
             {
                 IsMerging = mergeHead,
@@ -70,7 +74,7 @@ public sealed class GitCliRepository : IGitRepository
             },
             Changes = changes,
             Commits = commits,
-            Branches = ParseBranches(branchesTask.Result),
+            Branches = branches,
             Tags = ParseTags(tagsTask.Result),
             Remotes = ParseRemotes(remotesTask.Result),
             Stashes = ParseStashes(stashTask.Result),
@@ -132,6 +136,17 @@ public sealed class GitCliRepository : IGitRepository
 
     public Task CheckoutAsync(string refOrSha, CancellationToken cancellationToken = default)
         => _git.RunAsync(["checkout", refOrSha], cancellationToken: cancellationToken);
+
+    public Task ResetAsync(string sha, ResetMode mode, CancellationToken cancellationToken = default)
+    {
+        var flag = mode switch
+        {
+            ResetMode.Soft => "--soft",
+            ResetMode.Hard => "--hard",
+            _ => "--mixed"
+        };
+        return _git.RunAsync(["reset", flag, sha], cancellationToken: cancellationToken);
+    }
 
     public Task CreateBranchAsync(string name, string? startPoint = null, CancellationToken cancellationToken = default)
         => _git.RunAsync(startPoint is null ? ["checkout", "-b", name] : ["checkout", "-b", name, startPoint], cancellationToken: cancellationToken);
@@ -704,9 +719,5 @@ public sealed class GitCliRepository : IGitRepository
 
         return list;
     }
-
-    private static string Truncate(string sha) => sha.Length >= 7 ? sha[..7] : sha;
 }
-
-
 

@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GitTree.Core\GitTree.Core.csproj" />
     <ProjectReference Include="..\..\src\GitTree.Git.Cli\GitTree.Git.Cli.csproj" />
+    <ProjectReference Include="..\..\src\GitTree.Git.LibGit2\GitTree.Git.LibGit2.csproj" />
   </ItemGroup>
 
   <ItemGroup>
