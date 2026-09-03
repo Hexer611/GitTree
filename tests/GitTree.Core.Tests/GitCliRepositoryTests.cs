@@ -176,15 +176,125 @@ public class GitCliRepositoryTests
             });
 
             var after = await repo.RefreshAsync();
-            Assert.Contains(after.Changes, c => c.IsConflict && c.Path == "README.md");
-            Assert.Contains(after.Changes, c => c.IsConflict && c.Path == "config.json");
+            Assert.DoesNotContain(after.Changes, c => c.IsConflict);
 
             var readme = (await File.ReadAllTextAsync(Path.Combine(root, "README.md"))).Replace("\r\n", "\n");
             var json = (await File.ReadAllTextAsync(Path.Combine(root, "config.json"))).Replace("\r\n", "\n");
-            Assert.NotEqual("from main\n", readme);
-            Assert.NotEqual("""{"name":"main"}""" + "\n", json);
-            Assert.Contains("extra heading", readme);
-            Assert.Contains("ok", json);
+            Assert.Equal("from other\nextra heading\n", readme);
+            Assert.Equal("""{"name":"other","ok":true}""" + "\n", json);
+        }
+        finally
+        {
+            TryDelete(wt);
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task ImportsDifferentHunksWithoutConflict()
+    {
+        var root = CreateTempRepo();
+        var wt = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + "-wt");
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "AAA\nBBB\nCCC\nDDD\nEEE\nFFF\nGGG\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("base");
+            Run(root, "branch", "other");
+            Run(root, "worktree", "add", wt, "other");
+
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "CURRENT\nBBB\nCCC\nDDD\nEEE\nFFF\nGGG\n");
+            await File.WriteAllTextAsync(Path.Combine(wt, "a.txt"), "AAA\nBBB\nCCC\nDDD\nEEE\nFFF\nOTHER\n");
+
+            var snap = await repo.RefreshAsync();
+            var other = snap.Worktrees.Single(w => !w.IsCurrent);
+            await repo.ImportChangesFromWorktreeAsync(other, new WorktreeImportSelection
+            {
+                FilePaths = ["a.txt"]
+            });
+
+            var after = await repo.RefreshAsync();
+            Assert.DoesNotContain(after.Changes, c => c.IsConflict);
+            var text = (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n");
+            Assert.Equal("CURRENT\nBBB\nCCC\nDDD\nEEE\nFFF\nOTHER\n", text);
+        }
+        finally
+        {
+            TryDelete(wt);
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task ImportsSameHunkPrefersWorktreeVersion()
+    {
+        var root = CreateTempRepo();
+        var wt = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + "-wt");
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "shared\nconflict\nshared\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("base");
+            Run(root, "branch", "other");
+            Run(root, "worktree", "add", wt, "other");
+
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "shared\nours\nshared\n");
+            await File.WriteAllTextAsync(Path.Combine(wt, "a.txt"), "shared\ntheirs\nshared\n");
+
+            var snap = await repo.RefreshAsync();
+            var other = snap.Worktrees.Single(w => !w.IsCurrent);
+            await repo.ImportChangesFromWorktreeAsync(other, new WorktreeImportSelection
+            {
+                FilePaths = ["a.txt"]
+            });
+
+            var after = await repo.RefreshAsync();
+            Assert.DoesNotContain(after.Changes, c => c.IsConflict);
+            var text = (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n");
+            Assert.Equal("shared\ntheirs\nshared\n", text);
+        }
+        finally
+        {
+            TryDelete(wt);
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task ImportMergePrefersIncomingOnOverlappingCommits()
+    {
+        var root = CreateTempRepo();
+        var wt = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + "-wt");
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "f.txt"), "base\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["f.txt"]);
+            await repo.CommitAsync("base");
+            Run(root, "branch", "other");
+            Run(root, "worktree", "add", wt, "other");
+
+            await File.WriteAllTextAsync(Path.Combine(wt, "f.txt"), "theirs\n");
+            Run(wt, "add", "f.txt");
+            Run(wt, "commit", "-m", "theirs");
+
+            await File.WriteAllTextAsync(Path.Combine(root, "f.txt"), "ours\n");
+            await repo.StageAsync(["f.txt"]);
+            await repo.CommitAsync("ours");
+
+            var snap = await repo.RefreshAsync();
+            var other = snap.Worktrees.Single(w => !w.IsCurrent);
+            await repo.ImportChangesFromWorktreeAsync(other, new WorktreeImportSelection
+            {
+                MergeBranch = true
+            });
+
+            var after = await repo.RefreshAsync();
+            Assert.False(after.Operation.IsMerging);
+            Assert.DoesNotContain(after.Changes, c => c.IsConflict);
+            Assert.Equal("theirs\n", (await File.ReadAllTextAsync(Path.Combine(root, "f.txt"))).Replace("\r\n", "\n"));
         }
         finally
         {

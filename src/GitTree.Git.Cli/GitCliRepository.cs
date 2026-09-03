@@ -221,7 +221,9 @@ public sealed class GitCliRepository : IGitRepository
         {
             try
             {
-                await MergeAsync(worktree.MergeRef, cancellationToken);
+                await _git.RunAsync(
+                    ["merge", "--no-edit", "-X", "theirs", worktree.MergeRef],
+                    cancellationToken: cancellationToken);
             }
             catch (GitException ex)
             {
@@ -304,15 +306,20 @@ public sealed class GitCliRepository : IGitRepository
 
     private async Task ImportTrackedFilesAsync(string other, IReadOnlyList<FileChange> files, CancellationToken cancellationToken)
     {
+        var mergeBase = await ResolveMergeBaseAsync(other, cancellationToken);
         foreach (var file in files)
         {
             if (file.IndexStatus == FileChangeKind.Untracked)
                 continue;
-            await ImportTrackedFileAsync(other, file, cancellationToken);
+            await ImportTrackedFileAsync(other, file, mergeBase, cancellationToken);
         }
     }
 
-    private async Task ImportTrackedFileAsync(string other, FileChange file, CancellationToken cancellationToken)
+    private async Task ImportTrackedFileAsync(
+        string other,
+        FileChange file,
+        string? mergeBase,
+        CancellationToken cancellationToken)
     {
         var relative = file.Path.Replace('\\', '/');
         var source = CombineUnderRoot(other, relative);
@@ -343,19 +350,23 @@ public sealed class GitCliRepository : IGitRepository
             return;
         }
 
+        if (await FileHasConflictMarkersAsync(dest, cancellationToken)
+            || await IsUnmergedPathAsync(relative, cancellationToken))
+        {
+            File.Copy(source, dest, overwrite: true);
+            await _git.RunAsync(["add", "--", relative], throwOnError: false, cancellationToken: cancellationToken);
+            return;
+        }
+
         var baseTemp = Path.GetTempFileName();
         var oursTemp = Path.GetTempFileName();
         try
         {
             File.Copy(dest, oursTemp, overwrite: true);
-            var baseText = await _git.RunAsync(
-                ["show", $"HEAD:{relative}"],
-                throwOnError: false,
-                cancellationToken: cancellationToken,
-                workingDirectory: other);
+            var baseText = await ReadBlobAtAsync(mergeBase, relative, cancellationToken);
             await File.WriteAllTextAsync(baseTemp, baseText, cancellationToken);
             await _git.RunAsync(
-                ["merge-file", "-L", "current", "-L", "base", "-L", "other", dest, baseTemp, source],
+                ["merge-file", "--theirs", "-L", "current", "-L", "base", "-L", "other", dest, baseTemp, source],
                 throwOnError: false,
                 cancellationToken: cancellationToken);
             if (await FileHasConflictMarkersAsync(dest, cancellationToken))
@@ -370,6 +381,43 @@ public sealed class GitCliRepository : IGitRepository
             try { File.Delete(baseTemp); } catch { /* temp cleanup */ }
             try { File.Delete(oursTemp); } catch { /* temp cleanup */ }
         }
+    }
+
+    private async Task<string?> ResolveMergeBaseAsync(string other, CancellationToken cancellationToken)
+    {
+        var otherHead = (await _git.RunAsync(
+            ["rev-parse", "HEAD"],
+            throwOnError: false,
+            cancellationToken: cancellationToken,
+            workingDirectory: other)).Trim();
+        if (string.IsNullOrWhiteSpace(otherHead))
+            return null;
+
+        var mergeBase = (await _git.RunAsync(
+            ["merge-base", "HEAD", otherHead],
+            throwOnError: false,
+            cancellationToken: cancellationToken)).Trim();
+        return string.IsNullOrWhiteSpace(mergeBase) ? null : mergeBase;
+    }
+
+    private async Task<string> ReadBlobAtAsync(string? sha, string relative, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(sha))
+            return "";
+
+        return await _git.RunAsync(
+            ["show", $"{sha}:{relative}"],
+            throwOnError: false,
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task<bool> IsUnmergedPathAsync(string relative, CancellationToken cancellationToken)
+    {
+        var output = await _git.RunAsync(
+            ["ls-files", "-u", "--", relative],
+            throwOnError: false,
+            cancellationToken: cancellationToken);
+        return output.Trim().Length > 0;
     }
 
     private async Task RecordUnmergedIndexAsync(
