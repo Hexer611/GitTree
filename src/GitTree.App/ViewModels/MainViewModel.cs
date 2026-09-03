@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -41,6 +42,8 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _newBranchName = "";
     [ObservableProperty] private string _conflictFileText = "";
     [ObservableProperty] private string _diffHeader = "Diff";
+    [ObservableProperty] private int _removedLineCount;
+    [ObservableProperty] private int _addedLineCount;
     [ObservableProperty] private bool _showConflictEditor;
     [ObservableProperty] private int _unstagedCount;
     [ObservableProperty] private int _stagedCount;
@@ -100,6 +103,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private RecentRepoItem? _selectedRecent;
 
     public bool HasConflictOperation => IsMerging || IsRebasing || ConflictCount > 0;
+    public bool HasDiffLineStats => RemovedLineCount > 0 || AddedLineCount > 0;
+    public bool HasRemovedLineStats => RemovedLineCount > 0;
+    public bool HasAddedLineStats => AddedLineCount > 0;
 
     public MainViewModel()
     {
@@ -225,6 +231,22 @@ public partial class MainViewModel : ViewModelBase
     partial void OnIsMergingChanged(bool value) => OnPropertyChanged(nameof(HasConflictOperation));
     partial void OnIsRebasingChanged(bool value) => OnPropertyChanged(nameof(HasConflictOperation));
     partial void OnConflictCountChanged(int value) => OnPropertyChanged(nameof(HasConflictOperation));
+    partial void OnRemovedLineCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasDiffLineStats));
+        OnPropertyChanged(nameof(HasRemovedLineStats));
+        OnPropertyChanged(nameof(RemovedLineCountText));
+    }
+
+    partial void OnAddedLineCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasDiffLineStats));
+        OnPropertyChanged(nameof(HasAddedLineStats));
+        OnPropertyChanged(nameof(AddedLineCountText));
+    }
+
+    public string RemovedLineCountText => $"−{RemovedLineCount}";
+    public string AddedLineCountText => $"+{AddedLineCount}";
 
     [RelayCommand]
     private async Task OpenRepositoryAsync()
@@ -898,11 +920,11 @@ public partial class MainViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(text) && kind == DiffKind.WorkTree && file.IndexStatus == FileChangeKind.Untracked)
         {
             text = await _repo.ReadWorkingFileAsync(file.Path);
-            Replace(DiffLines, DiffLineParser.ParseNewFile(text));
+            SetDiffLines(DiffLineParser.ParseNewFile(text));
             return;
         }
 
-        Replace(DiffLines, DiffLineParser.Parse(text));
+        SetDiffLines(DiffLineParser.Parse(text));
     }
 
     private async Task LoadConflictFileAsync(FileChange file)
@@ -912,7 +934,7 @@ public partial class MainViewModel : ViewModelBase
         ShowConflictEditor = true;
         DiffHeader = $"Conflict • {file.DisplayPath}";
         ConflictFileText = await _repo.ReadWorkingFileAsync(file.Path);
-        Replace(DiffLines, DiffLineParser.Parse(ConflictFileText));
+        SetDiffLines(DiffLineParser.Parse(ConflictFileText));
     }
 
     private async Task LoadCommitAsync(CommitNode commit)
@@ -926,7 +948,7 @@ public partial class MainViewModel : ViewModelBase
         if (SelectedCommitFile is null)
         {
             DiffHeader = $"{commit.ShortSha} • no file changes";
-            Replace(DiffLines, []);
+            SetDiffLines([]);
         }
     }
 
@@ -953,7 +975,7 @@ public partial class MainViewModel : ViewModelBase
 
         ShowConflictEditor = false;
         DiffHeader = "Working tree";
-        Replace(DiffLines, []);
+        SetDiffLines([]);
     }
 
     private async Task LoadCommitFileDiffAsync(CommitNode commit, FileChange file)
@@ -963,7 +985,15 @@ public partial class MainViewModel : ViewModelBase
         ShowConflictEditor = false;
         DiffHeader = $"{commit.ShortSha} • {file.DisplayPath}";
         var text = await _repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.Commit, CommitSha = commit.Sha, Path = file.Path });
-        Replace(DiffLines, DiffLineParser.Parse(text));
+        SetDiffLines(DiffLineParser.Parse(text));
+    }
+
+    private void SetDiffLines(IEnumerable<DiffLine> lines)
+    {
+        var list = lines as IList<DiffLine> ?? lines.ToList();
+        Replace(DiffLines, list);
+        RemovedLineCount = list.Count(l => l.Kind == DiffLineKind.Removed);
+        AddedLineCount = list.Count(l => l.Kind == DiffLineKind.Added);
     }
 
     private async Task MutateAsync(Func<IGitRepository, Task> action)
