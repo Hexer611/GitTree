@@ -336,6 +336,82 @@ public class GitCliRepositoryTests
     }
 
     [Fact]
+    public async Task StagesAndDiscardsSelectedDiffLines()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "keep\nold\nend\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("base");
+
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "keep\nnew\nskip\nend\n");
+            var diff = await repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.WorkTree, Path = "a.txt" });
+            var lines = DiffLineParser.Parse(diff);
+            var addedNew = Assert.Single(lines, l => l.Kind == DiffLineKind.Added && l.DisplayText == "new");
+            var removedOld = Assert.Single(lines, l => l.Kind == DiffLineKind.Removed && l.DisplayText == "old");
+
+            var stagePatch = SelectedDiffPatch.Build(lines, [addedNew, removedOld], "a.txt", SelectedDiffPatchMode.MatchOld);
+            Assert.NotNull(stagePatch);
+            await repo.ApplyDiffPatchAsync(stagePatch!, DiffPatchAction.Stage);
+
+            var afterStage = await repo.RefreshAsync();
+            Assert.Contains(afterStage.Changes, c => c.Path == "a.txt" && c.IsStaged);
+            Assert.Contains(afterStage.Changes, c => c.Path == "a.txt" && c.IsUnstaged);
+            var stagedDiff = await repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.Index, Path = "a.txt" });
+            Assert.Contains("+new", stagedDiff);
+            Assert.DoesNotContain("+skip", stagedDiff);
+
+            var workDiff = await repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.WorkTree, Path = "a.txt" });
+            var unstaged = DiffLineParser.Parse(workDiff);
+            var skip = Assert.Single(unstaged, l => l.Kind == DiffLineKind.Added && l.DisplayText == "skip");
+            var discardPatch = SelectedDiffPatch.Build(unstaged, [skip], "a.txt", SelectedDiffPatchMode.MatchNew);
+            Assert.NotNull(discardPatch);
+            await repo.ApplyDiffPatchAsync(discardPatch!, DiffPatchAction.Discard);
+
+            var text = (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n");
+            Assert.Equal("keep\nnew\nend\n", text);
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task StagesSelectedLinesOfUntrackedFile()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "readme.txt"), "hello\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["readme.txt"]);
+            await repo.CommitAsync("init");
+
+            await File.WriteAllTextAsync(Path.Combine(root, "new.txt"), "one\ntwo\nthree\n");
+            var lines = DiffLineParser.ParseNewFile(await File.ReadAllTextAsync(Path.Combine(root, "new.txt")));
+            var two = Assert.Single(lines, l => l.Kind == DiffLineKind.Added && l.DisplayText == "two");
+            var patch = SelectedDiffPatch.Build(lines, [two], "new.txt", SelectedDiffPatchMode.MatchOld, isNewFile: true);
+            Assert.NotNull(patch);
+            await repo.ApplyDiffPatchAsync(patch!, DiffPatchAction.Stage);
+
+            var snap = await repo.RefreshAsync();
+            Assert.Contains(snap.Changes, c => c.Path == "new.txt" && c.IsStaged);
+            var stagedDiff = await repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.Index, Path = "new.txt" });
+            Assert.Contains("+two", stagedDiff);
+            Assert.DoesNotContain("+one", stagedDiff);
+            var work = (await File.ReadAllTextAsync(Path.Combine(root, "new.txt"))).Replace("\r\n", "\n");
+            Assert.Equal("one\ntwo\nthree\n", work);
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
     public async Task ResetMixedKeepsWorktreeAndClearsIndex()
     {
         var root = CreateTempRepo();
@@ -387,6 +463,139 @@ public class GitCliRepositoryTests
             Assert.Equal(first, after.HeadSha);
             Assert.DoesNotContain(after.Changes, c => c.Path == "a.txt");
             Assert.Equal("one\n", (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n"));
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task MergeCommitShaCreatesMergeOnCurrentBranch()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "base.txt"), "base\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["base.txt"]);
+            await repo.CommitAsync("base");
+
+            await repo.CreateBranchAsync("side");
+            await File.WriteAllTextAsync(Path.Combine(root, "side.txt"), "side\n");
+            await repo.StageAsync(["side.txt"]);
+            await repo.CommitAsync("add side");
+            var sideSha = (await repo.RefreshAsync()).HeadSha;
+
+            await repo.CheckoutAsync("main");
+            await File.WriteAllTextAsync(Path.Combine(root, "main.txt"), "main\n");
+            await repo.StageAsync(["main.txt"]);
+            await repo.CommitAsync("add main");
+
+            await repo.MergeAsync(sideSha);
+            var after = await repo.RefreshAsync();
+            var head = Assert.Single(after.Commits, c => c.IsHead);
+            Assert.True(head.IsMerge);
+            Assert.Equal("main", after.CurrentBranch);
+            Assert.Equal("side\n", (await File.ReadAllTextAsync(Path.Combine(root, "side.txt"))).Replace("\r\n", "\n"));
+            Assert.Equal("main\n", (await File.ReadAllTextAsync(Path.Combine(root, "main.txt"))).Replace("\r\n", "\n"));
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task CherryPickCopiesCommitOntoCurrentBranch()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "base.txt"), "base\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["base.txt"]);
+            await repo.CommitAsync("base");
+
+            await repo.CreateBranchAsync("side");
+            await File.WriteAllTextAsync(Path.Combine(root, "feature.txt"), "feature\n");
+            await repo.StageAsync(["feature.txt"]);
+            await repo.CommitAsync("add feature");
+            var featureSha = (await repo.RefreshAsync()).HeadSha;
+
+            await repo.CheckoutAsync("main");
+            var before = await repo.RefreshAsync();
+            Assert.Equal("main", before.CurrentBranch);
+            Assert.NotEqual(featureSha, before.HeadSha);
+
+            await repo.CherryPickAsync(featureSha);
+            var after = await repo.RefreshAsync();
+            Assert.Equal("main", after.CurrentBranch);
+            Assert.NotEqual(featureSha, after.HeadSha);
+            Assert.Contains(after.Commits, c => c.IsHead && c.Subject == "add feature");
+            Assert.Equal("feature\n", (await File.ReadAllTextAsync(Path.Combine(root, "feature.txt"))).Replace("\r\n", "\n"));
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task CherryPickIncludeCommitIdAppendsOrigin()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "base.txt"), "base\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["base.txt"]);
+            await repo.CommitAsync("base");
+
+            await repo.CreateBranchAsync("side");
+            await File.WriteAllTextAsync(Path.Combine(root, "feature.txt"), "feature\n");
+            await repo.StageAsync(["feature.txt"]);
+            await repo.CommitAsync("add feature");
+            var featureSha = (await repo.RefreshAsync()).HeadSha;
+
+            await repo.CheckoutAsync("main");
+            await repo.CherryPickAsync(featureSha, new CherryPickOptions { IncludeCommitId = true });
+
+            var body = RunCapture(root, "log", "-1", "--format=%B");
+            Assert.Contains("add feature", body);
+            Assert.Contains($"(cherry picked from commit {featureSha})", body);
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task CherryPickNoCommitStagesWithoutNewCommit()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "base.txt"), "base\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["base.txt"]);
+            await repo.CommitAsync("base");
+
+            await repo.CreateBranchAsync("side");
+            await File.WriteAllTextAsync(Path.Combine(root, "feature.txt"), "feature\n");
+            await repo.StageAsync(["feature.txt"]);
+            await repo.CommitAsync("add feature");
+            var featureSha = (await repo.RefreshAsync()).HeadSha;
+
+            await repo.CheckoutAsync("main");
+            var head = (await repo.RefreshAsync()).HeadSha;
+            await repo.CherryPickAsync(featureSha, new CherryPickOptions { NoCommit = true });
+
+            var after = await repo.RefreshAsync();
+            Assert.Equal(head, after.HeadSha);
+            Assert.Contains(after.Changes, c => c.Path == "feature.txt" && c.IsStaged);
+            Assert.Equal("feature\n", (await File.ReadAllTextAsync(Path.Combine(root, "feature.txt"))).Replace("\r\n", "\n"));
         }
         finally
         {
@@ -511,10 +720,14 @@ public class GitCliRepositoryTests
         Run(root, "init", "-b", "main");
         Run(root, "config", "user.email", "test@gittree.local");
         Run(root, "config", "user.name", "GitTree Tests");
+        Run(root, "config", "core.autocrlf", "false");
         return root;
     }
 
-    private static void Run(string dir, params string[] args)
+    private static void Run(string dir, params string[] args) =>
+        RunCapture(dir, args);
+
+    private static string RunCapture(string dir, params string[] args)
     {
         var psi = new System.Diagnostics.ProcessStartInfo("git")
         {
@@ -526,9 +739,12 @@ public class GitCliRepositoryTests
         foreach (var arg in args)
             psi.ArgumentList.Add(arg);
         using var proc = System.Diagnostics.Process.Start(psi)!;
+        var stdout = proc.StandardOutput.ReadToEnd();
+        var stderr = proc.StandardError.ReadToEnd();
         proc.WaitForExit();
         if (proc.ExitCode != 0)
-            throw new InvalidOperationException(proc.StandardError.ReadToEnd());
+            throw new InvalidOperationException(stderr);
+        return stdout;
     }
 
     private static void TryDelete(string root)

@@ -248,6 +248,15 @@
         <Style Selector="ListBox.diff ListBoxItem:selected:pointerover">
             <Setter Property="Background" Value="Transparent" />
         </Style>
+        <Style Selector="ListBox.diff ListBoxItem Border.diff-sel-overlay">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="3,0,0,0" />
+        </Style>
+        <Style Selector="ListBox.diff ListBoxItem:selected Border.diff-sel-overlay">
+            <Setter Property="Background" Value="#332A9BFF" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
 
         <Style Selector="ListBox.commits">
             <Setter Property="Padding" Value="0" />

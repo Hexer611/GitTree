@@ -14,11 +14,18 @@ public static class DiffLineParser
         if (string.IsNullOrEmpty(diff))
             return lines;
 
+        var text = diff.Replace("\r\n", "\n");
+        var rawLines = text.Split('\n');
+        var last = rawLines.Length;
+        if (last > 0 && rawLines[last - 1].Length == 0)
+            last--;
+
         var oldLine = 0;
         var newLine = 0;
 
-        foreach (var raw in diff.Replace("\r\n", "\n").Split('\n'))
+        for (var i = 0; i < last; i++)
         {
+            var raw = rawLines[i];
             if (raw.Length == 0 && lines.Count == 0)
                 continue;
 
@@ -42,7 +49,9 @@ public static class DiffLineParser
                     {
                         DisplayText = title,
                         Prefix = "",
-                        HunkTitle = title
+                        HunkTitle = title,
+                        HunkOldStart = oldLine,
+                        HunkNewStart = newLine
                     });
                 }
                 else
@@ -100,11 +109,22 @@ public static class DiffLineParser
     public static IReadOnlyList<DiffLine> ParseNewFile(string content)
     {
         var lines = new List<DiffLine>();
-        if (string.IsNullOrEmpty(content))
-            return lines;
+        var text = content.Replace("\r\n", "\n");
+        if (text.EndsWith('\n'))
+            text = text[..^1];
 
+        var rawLines = text.Length == 0 ? Array.Empty<string>() : text.Split('\n');
         var n = 1;
-        foreach (var raw in content.Replace("\r\n", "\n").Split('\n'))
+        lines.Add(new DiffLine(DiffLineKind.Hunk, $"@@ -0,0 +1,{rawLines.Length} @@")
+        {
+            DisplayText = "New file",
+            Prefix = "",
+            HunkTitle = "New file",
+            HunkOldStart = 0,
+            HunkNewStart = 1
+        });
+
+        foreach (var raw in rawLines)
         {
             lines.Add(new DiffLine(DiffLineKind.Added, "+" + raw)
             {
@@ -283,7 +303,11 @@ public sealed record DiffLine(DiffLineKind Kind, string Text)
     public int? OldNumber { get; init; }
     public int? NewNumber { get; init; }
     public string? HunkTitle { get; init; }
+    public int? HunkOldStart { get; init; }
+    public int? HunkNewStart { get; init; }
     public IReadOnlyList<DiffSegment> Segments { get; init; } = [];
+
+    public bool IsChange => Kind is DiffLineKind.Added or DiffLineKind.Removed;
 
     public string OldNumberText => OldNumber is int n ? n.ToString() : "";
     public string NewNumberText => NewNumber is int n ? n.ToString() : "";

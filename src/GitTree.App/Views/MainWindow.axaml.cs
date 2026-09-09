@@ -108,6 +108,50 @@ public partial class MainWindow : Window
         return node;
     }
 
+    private bool _syncingDiffSelection;
+
+    private void OnDiffSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingDiffSelection || sender is not ListBox list || DataContext is not MainViewModel vm)
+            return;
+
+        var raw = list.SelectedItems?.OfType<DiffLine>().ToList() ?? [];
+        var expanded = vm.SetDiffLineSelection(raw);
+        if (raw.Count == expanded.Count && raw.All(l => l.IsChange))
+            return;
+
+        _syncingDiffSelection = true;
+        try
+        {
+            list.SelectedItems?.Clear();
+            foreach (var line in expanded)
+                list.SelectedItems?.Add(line);
+        }
+        finally
+        {
+            _syncingDiffSelection = false;
+        }
+    }
+
+    private void OnDiffContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is not ListBox list)
+            return;
+
+        var visual = e.Source as Visual;
+        var item = visual?.FindAncestorOfType<ListBoxItem>(includeSelf: true);
+        if (item?.DataContext is not DiffLine line)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (list.SelectedItems is not null && list.SelectedItems.Contains(line))
+            return;
+
+        list.SelectedItem = line;
+    }
+
     private void OnUnstagedSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (sender is ListBox list && DataContext is MainViewModel vm)
@@ -118,6 +162,25 @@ public partial class MainWindow : Window
     {
         if (sender is ListBox list && DataContext is MainViewModel vm)
             vm.SetStagedSelection(list.SelectedItems?.OfType<FileChange>() ?? []);
+    }
+
+    private void OnUnstagedContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is not ListBox list)
+            return;
+
+        var visual = e.Source as Visual;
+        var item = visual?.FindAncestorOfType<ListBoxItem>(includeSelf: true);
+        if (item?.DataContext is not FileChange file)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (list.SelectedItems is not null && list.SelectedItems.Contains(file))
+            return;
+
+        list.SelectedItem = file;
     }
 
     private void OnUnstagedDoubleTapped(object? sender, TappedEventArgs e) =>

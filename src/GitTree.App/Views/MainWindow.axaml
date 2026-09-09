@@ -325,6 +325,16 @@
                                 <ListBox.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem x:Name="CommitCheckoutMenu" Header="Checkout" />
+                                        <MenuItem Header="Cherry-pick">
+                                            <MenuItem Header="Cherry-pick this commit"
+                                                      Command="{Binding CherryPickCommitCommand}" />
+                                            <MenuItem Header="Cherry-pick this commit (include commit id)"
+                                                      Command="{Binding CherryPickCommitWithIdCommand}" />
+                                            <MenuItem Header="Cherry-pick without committing"
+                                                      Command="{Binding CherryPickCommitNoCommitCommand}" />
+                                        </MenuItem>
+                                        <MenuItem Header="Merge into current branch"
+                                                  Command="{Binding MergeCommitCommand}" />
                                         <MenuItem Header="Reset current branch to this commit..."
                                                   Command="{Binding ResetToCommitCommand}"
                                                   IsEnabled="{Binding !IsDetached}" />
@@ -439,6 +449,20 @@
                                             <TextBlock Text="{Binding RemovedLineCountText}" FontSize="11" Foreground="{DynamicResource DangerBrush}" />
                                         </StackPanel>
                                     </StackPanel>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                                                Margin="0,0,12,0" IsVisible="{Binding HasSelectedDiffLines}">
+                                        <TextBlock Text="{Binding SelectedDiffChangeCountText}" FontSize="11"
+                                                   Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" />
+                                        <Button Classes="ghost tiny" Content="Stage lines" Command="{Binding StageSelectedLinesCommand}"
+                                                IsVisible="{Binding CanStageSelectedDiffLines}"
+                                                ToolTip.Tip="Stage the selected added and removed lines." />
+                                        <Button Classes="ghost tiny" Content="Unstage lines" Command="{Binding UnstageSelectedLinesCommand}"
+                                                IsVisible="{Binding CanUnstageSelectedDiffLines}"
+                                                ToolTip.Tip="Unstage the selected added and removed lines." />
+                                        <Button Classes="danger tiny" Content="Discard lines" Command="{Binding DiscardSelectedLinesCommand}"
+                                                IsVisible="{Binding CanDiscardSelectedDiffLines}"
+                                                ToolTip.Tip="Discard the selected added and removed lines from the working copy." />
+                                    </StackPanel>
                                     <TextBlock Text="{Binding DiffHeader}" FontSize="12.5" FontWeight="SemiBold"
                                                TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,12,0" />
                                 </DockPanel>
@@ -453,11 +477,25 @@
                                      TextWrapping="NoWrap"
                                      BorderThickness="0"
                                      CornerRadius="0" />
-                            <ListBox Classes="diff" IsVisible="{Binding !ShowConflictEditor}" ItemsSource="{Binding DiffLines}"
-                                     Background="{DynamicResource DiffBgBrush}">
+                            <ListBox x:Name="DiffList" Classes="diff" IsVisible="{Binding !ShowConflictEditor}" ItemsSource="{Binding DiffLines}"
+                                     Background="{DynamicResource DiffBgBrush}"
+                                     SelectionMode="Multiple"
+                                     SelectionChanged="OnDiffSelectionChanged"
+                                     ContextRequested="OnDiffContextRequested"
+                                     ToolTip.Tip="Click added or removed lines to select them. Ctrl+click and Shift+click select several. Click a hunk header to select that hunk.">
+                                <ListBox.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Stage selected lines" Command="{Binding StageSelectedLinesCommand}" />
+                                        <MenuItem Header="Unstage selected lines" Command="{Binding UnstageSelectedLinesCommand}" />
+                                        <MenuItem Header="Discard selected lines" Command="{Binding DiscardSelectedLinesCommand}" />
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="core:DiffLine">
-                                        <controls:DiffLineView Line="{Binding}" />
+                                        <Grid>
+                                            <controls:DiffLineView Line="{Binding}" />
+                                            <Border Classes="diff-sel-overlay" IsHitTestVisible="False" />
+                                        </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
@@ -493,7 +531,13 @@
                                              SelectedItem="{Binding SelectedUnstaged}"
                                              SelectionMode="Multiple"
                                              SelectionChanged="OnUnstagedSelectionChanged"
-                                             DoubleTapped="OnUnstagedDoubleTapped">
+                                             DoubleTapped="OnUnstagedDoubleTapped"
+                                             ContextRequested="OnUnstagedContextRequested">
+                                        <ListBox.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Discard" Command="{Binding DiscardCommand}" />
+                                            </ContextMenu>
+                                        </ListBox.ContextMenu>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="core:FileChange">
                                                 <Border CornerRadius="6" Padding="6,5"

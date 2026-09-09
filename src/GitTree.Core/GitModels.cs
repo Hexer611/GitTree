@@ -66,11 +66,24 @@ public enum DiffKind
     Commit
 }
 
+public enum DiffPatchAction
+{
+    Stage,
+    Unstage,
+    Discard
+}
+
 public enum ResetMode
 {
     Soft,
     Mixed,
     Hard
+}
+
+public sealed class CherryPickOptions
+{
+    public bool IncludeCommitId { get; init; }
+    public bool NoCommit { get; init; }
 }
 
 public sealed class DiffRequest
@@ -94,10 +107,12 @@ public interface IGitRepository : IDisposable
     Task StageAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default);
     Task UnstageAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default);
     Task DiscardAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default);
+    Task ApplyDiffPatchAsync(string patch, DiffPatchAction action, CancellationToken cancellationToken = default);
     Task CommitAsync(string message, bool amend = false, CancellationToken cancellationToken = default);
 
     Task CheckoutAsync(string refOrSha, CancellationToken cancellationToken = default);
     Task ResetAsync(string sha, ResetMode mode, CancellationToken cancellationToken = default);
+    Task CherryPickAsync(string sha, CherryPickOptions? options = null, CancellationToken cancellationToken = default);
     Task CreateBranchAsync(string name, string? startPoint = null, CancellationToken cancellationToken = default);
     Task DeleteBranchAsync(string name, bool force = false, CancellationToken cancellationToken = default);
 

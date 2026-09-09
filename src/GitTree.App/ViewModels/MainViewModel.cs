@@ -24,6 +24,7 @@ public partial class MainViewModel : ViewModelBase
     private bool _preserveError;
     private List<string> _unstagedSelection = [];
     private List<string> _stagedSelection = [];
+    private List<DiffLine> _diffLineSelection = [];
     private IReadOnlyList<BranchRef> _branches = [];
 
     public Window? Host { get; set; }
@@ -44,6 +45,8 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _diffHeader = "Diff";
     [ObservableProperty] private int _removedLineCount;
     [ObservableProperty] private int _addedLineCount;
+    [ObservableProperty] private int _selectedDiffChangeCount;
+    [ObservableProperty] private DiffKind? _activeDiffKind;
     [ObservableProperty] private bool _showConflictEditor;
     [ObservableProperty] private int _unstagedCount;
     [ObservableProperty] private int _stagedCount;
@@ -106,6 +109,11 @@ public partial class MainViewModel : ViewModelBase
     public bool HasDiffLineStats => RemovedLineCount > 0 || AddedLineCount > 0;
     public bool HasRemovedLineStats => RemovedLineCount > 0;
     public bool HasAddedLineStats => AddedLineCount > 0;
+    public bool HasSelectedDiffLines => SelectedDiffChangeCount > 0;
+    public bool CanStageSelectedDiffLines => HasSelectedDiffLines && ActiveDiffKind == DiffKind.WorkTree && !IsShowingCommitFiles && !ShowConflictEditor;
+    public bool CanDiscardSelectedDiffLines => CanStageSelectedDiffLines;
+    public bool CanUnstageSelectedDiffLines => HasSelectedDiffLines && ActiveDiffKind == DiffKind.Index && !IsShowingCommitFiles && !ShowConflictEditor;
+    public string SelectedDiffChangeCountText => SelectedDiffChangeCount == 1 ? "1 line" : $"{SelectedDiffChangeCount} lines";
 
     public MainViewModel()
     {
@@ -243,6 +251,23 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasDiffLineStats));
         OnPropertyChanged(nameof(HasAddedLineStats));
         OnPropertyChanged(nameof(AddedLineCountText));
+    }
+
+    partial void OnSelectedDiffChangeCountChanged(int value) => NotifyDiffLineCommands();
+    partial void OnActiveDiffKindChanged(DiffKind? value) => NotifyDiffLineCommands();
+    partial void OnIsShowingCommitFilesChanged(bool value) => NotifyDiffLineCommands();
+    partial void OnShowConflictEditorChanged(bool value) => NotifyDiffLineCommands();
+
+    private void NotifyDiffLineCommands()
+    {
+        OnPropertyChanged(nameof(HasSelectedDiffLines));
+        OnPropertyChanged(nameof(CanStageSelectedDiffLines));
+        OnPropertyChanged(nameof(CanDiscardSelectedDiffLines));
+        OnPropertyChanged(nameof(CanUnstageSelectedDiffLines));
+        OnPropertyChanged(nameof(SelectedDiffChangeCountText));
+        StageSelectedLinesCommand.NotifyCanExecuteChanged();
+        DiscardSelectedLinesCommand.NotifyCanExecuteChanged();
+        UnstageSelectedLinesCommand.NotifyCanExecuteChanged();
     }
 
     public string RemovedLineCountText => $"−{RemovedLineCount}";
@@ -554,6 +579,88 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private Task DiscardAsync() => MutateAsync(r => r.DiscardAsync(SelectedFilePaths(_unstagedSelection, SelectedUnstaged)));
 
+    [RelayCommand(CanExecute = nameof(CanStageSelectedDiffLines))]
+    private Task StageSelectedLinesAsync() => ApplySelectedDiffLinesAsync(DiffPatchAction.Stage);
+
+    [RelayCommand(CanExecute = nameof(CanUnstageSelectedDiffLines))]
+    private Task UnstageSelectedLinesAsync() => ApplySelectedDiffLinesAsync(DiffPatchAction.Unstage);
+
+    [RelayCommand(CanExecute = nameof(CanDiscardSelectedDiffLines))]
+    private Task DiscardSelectedLinesAsync() => ApplySelectedDiffLinesAsync(DiffPatchAction.Discard);
+
+    private async Task ApplySelectedDiffLinesAsync(DiffPatchAction action)
+    {
+        var file = action == DiffPatchAction.Unstage ? SelectedStaged : SelectedUnstaged;
+        if (file is null || _diffLineSelection.Count == 0)
+            return;
+
+        var selected = _diffLineSelection.ToList();
+        var diff = DiffLines.ToList();
+        var path = file.Path;
+        var isUntracked = file.IndexStatus == FileChangeKind.Untracked;
+        var allChanges = diff.Where(l => l.IsChange).ToList();
+        var allSelected = allChanges.Count > 0 && allChanges.All(c => _diffLineSelection.Exists(s => ReferenceEquals(s, c)));
+
+        await MutateAsync(async r =>
+        {
+            if (allSelected)
+            {
+                if (action == DiffPatchAction.Stage)
+                    await r.StageAsync([path]);
+                else if (action == DiffPatchAction.Unstage)
+                    await r.UnstageAsync([path]);
+                else
+                    await r.DiscardAsync([path]);
+                return;
+            }
+
+            if (action == DiffPatchAction.Discard && isUntracked)
+            {
+                var remaining = SelectedDiffPatch.KeepUnselectedNewFileContent(diff, selected);
+                if (string.IsNullOrEmpty(remaining))
+                    await r.DiscardAsync([path]);
+                else
+                    await r.WriteWorkingFileAsync(path, remaining);
+                return;
+            }
+
+            var mode = action == DiffPatchAction.Stage
+                ? SelectedDiffPatchMode.MatchOld
+                : SelectedDiffPatchMode.MatchNew;
+            var patch = SelectedDiffPatch.Build(
+                diff,
+                selected,
+                path,
+                mode,
+                isNewFile: isUntracked,
+                isDeletedFile: file.WorkTreeStatus == FileChangeKind.Deleted || file.IndexStatus == FileChangeKind.Deleted);
+            if (string.IsNullOrWhiteSpace(patch))
+                throw new InvalidOperationException("Those lines cannot be applied as a patch.");
+            await r.ApplyDiffPatchAsync(patch, action);
+        });
+
+        RestoreFileAfterLineEdit(action, path);
+    }
+
+    private void RestoreFileAfterLineEdit(DiffPatchAction action, string path)
+    {
+        if (action == DiffPatchAction.Unstage)
+        {
+            SelectedStaged = Staged.FirstOrDefault(f => f.Path == path);
+            if (SelectedStaged is not null)
+                _ = LoadWorktreeDiffAsync(SelectedStaged, DiffKind.Index);
+            else if (SelectedUnstaged is null)
+                _ = ShowWorkingTreeDiffAsync();
+            return;
+        }
+
+        SelectedUnstaged = Unstaged.FirstOrDefault(f => f.Path == path);
+        if (SelectedUnstaged is not null)
+            _ = LoadWorktreeDiffAsync(SelectedUnstaged, DiffKind.WorkTree);
+        else
+            _ = ShowWorkingTreeDiffAsync();
+    }
+
     [RelayCommand]
     private Task CommitAsync()
     {
@@ -726,11 +833,55 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private Task CherryPickCommitAsync() =>
+        CherryPickSelectedAsync(includeCommitId: false, noCommit: false);
+
+    [RelayCommand]
+    private Task CherryPickCommitWithIdAsync() =>
+        CherryPickSelectedAsync(includeCommitId: true, noCommit: false);
+
+    [RelayCommand]
+    private Task CherryPickCommitNoCommitAsync() =>
+        CherryPickSelectedAsync(includeCommitId: false, noCommit: true);
+
+    private Task CherryPickSelectedAsync(bool includeCommitId, bool noCommit)
+    {
+        if (SelectedCommit is null)
+            return Task.CompletedTask;
+
+        var commit = SelectedCommit;
+        var options = new CherryPickOptions
+        {
+            IncludeCommitId = includeCommitId,
+            NoCommit = noCommit
+        };
+        _pendingStatus = noCommit
+            ? $"Applied {commit.ShortSha} without committing."
+            : includeCommitId
+                ? $"Cherry-picked {commit.ShortSha} (recorded origin)."
+                : $"Cherry-picked {commit.ShortSha}.";
+        return MutateAsync(r => r.CherryPickAsync(commit.Sha, options));
+    }
+
+    [RelayCommand]
     private Task CheckoutTagAsync()
     {
         if (SelectedTag is null)
             return Task.CompletedTask;
         return MutateAsync(r => r.CheckoutAsync(SelectedTag.Name));
+    }
+
+    [RelayCommand]
+    private Task MergeCommitAsync()
+    {
+        if (SelectedCommit is null)
+            return Task.CompletedTask;
+
+        var commit = SelectedCommit;
+        _pendingStatus = string.IsNullOrWhiteSpace(CurrentBranch) || IsDetached
+            ? $"Merged {commit.ShortSha}."
+            : $"Merged {commit.ShortSha} into {CurrentBranch}.";
+        return MutateAsync(r => r.MergeAsync(commit.Sha));
     }
 
     [RelayCommand]
@@ -915,6 +1066,7 @@ public partial class MainViewModel : ViewModelBase
         if (_repo is null)
             return;
         ShowConflictEditor = false;
+        ActiveDiffKind = kind;
         DiffHeader = kind == DiffKind.Index ? $"Staged • {file.DisplayPath}" : $"Unstaged • {file.DisplayPath}";
         var text = await _repo.GetDiffAsync(new DiffRequest { Kind = kind, Path = file.Path });
         if (string.IsNullOrWhiteSpace(text) && kind == DiffKind.WorkTree && file.IndexStatus == FileChangeKind.Untracked)
@@ -932,6 +1084,7 @@ public partial class MainViewModel : ViewModelBase
         if (_repo is null)
             return;
         ShowConflictEditor = true;
+        ActiveDiffKind = null;
         DiffHeader = $"Conflict • {file.DisplayPath}";
         ConflictFileText = await _repo.ReadWorkingFileAsync(file.Path);
         SetDiffLines(DiffLineParser.Parse(ConflictFileText));
@@ -948,6 +1101,7 @@ public partial class MainViewModel : ViewModelBase
         if (SelectedCommitFile is null)
         {
             DiffHeader = $"{commit.ShortSha} • no file changes";
+            ActiveDiffKind = DiffKind.Commit;
             SetDiffLines([]);
         }
     }
@@ -975,6 +1129,7 @@ public partial class MainViewModel : ViewModelBase
 
         ShowConflictEditor = false;
         DiffHeader = "Working tree";
+        ActiveDiffKind = null;
         SetDiffLines([]);
     }
 
@@ -983,6 +1138,7 @@ public partial class MainViewModel : ViewModelBase
         if (_repo is null)
             return;
         ShowConflictEditor = false;
+        ActiveDiffKind = DiffKind.Commit;
         DiffHeader = $"{commit.ShortSha} • {file.DisplayPath}";
         var text = await _repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.Commit, CommitSha = commit.Sha, Path = file.Path });
         SetDiffLines(DiffLineParser.Parse(text));
@@ -994,6 +1150,15 @@ public partial class MainViewModel : ViewModelBase
         Replace(DiffLines, list);
         RemovedLineCount = list.Count(l => l.Kind == DiffLineKind.Removed);
         AddedLineCount = list.Count(l => l.Kind == DiffLineKind.Added);
+        SetDiffLineSelection([]);
+    }
+
+    public IReadOnlyList<DiffLine> SetDiffLineSelection(IEnumerable<DiffLine> lines)
+    {
+        var expanded = SelectedDiffPatch.ExpandSelection(DiffLines, lines).ToList();
+        _diffLineSelection = expanded;
+        SelectedDiffChangeCount = expanded.Count;
+        return expanded;
     }
 
     private async Task MutateAsync(Func<IGitRepository, Task> action)

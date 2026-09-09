@@ -98,6 +98,30 @@ public sealed class GitCliRepository : IGitRepository
     public Task UnstageAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
         => RunPaths(["restore", "--staged", "--"], paths, cancellationToken);
 
+    public Task ApplyDiffPatchAsync(string patch, DiffPatchAction action, CancellationToken cancellationToken = default)
+    {
+        var args = new List<string> { "apply", "--unidiff-zero", "--ignore-whitespace", "--whitespace=nowarn" };
+        switch (action)
+        {
+            case DiffPatchAction.Stage:
+                args.Add("--cached");
+                break;
+            case DiffPatchAction.Unstage:
+                args.Add("--cached");
+                args.Add("--reverse");
+                break;
+            case DiffPatchAction.Discard:
+                args.Add("--reverse");
+                break;
+        }
+
+        args.Add("-");
+        var text = patch.Replace("\r\n", "\n");
+        if (!text.EndsWith('\n'))
+            text += "\n";
+        return _git.RunWithInputAsync(args, text, cancellationToken: cancellationToken);
+    }
+
     public async Task DiscardAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
     {
         var list = paths.ToList();
@@ -146,6 +170,17 @@ public sealed class GitCliRepository : IGitRepository
             _ => "--mixed"
         };
         return _git.RunAsync(["reset", flag, sha], cancellationToken: cancellationToken);
+    }
+
+    public Task CherryPickAsync(string sha, CherryPickOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        var args = new List<string> { "cherry-pick" };
+        if (options?.NoCommit == true)
+            args.Add("--no-commit");
+        if (options?.IncludeCommitId == true)
+            args.Add("-x");
+        args.Add(sha);
+        return _git.RunAsync(args, cancellationToken: cancellationToken);
     }
 
     public Task CreateBranchAsync(string name, string? startPoint = null, CancellationToken cancellationToken = default)

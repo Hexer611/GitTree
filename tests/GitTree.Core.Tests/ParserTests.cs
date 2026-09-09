@@ -137,6 +137,61 @@ public class DiffLineParserTests
     }
 
     [Fact]
+    public void BuildsStagePatchFromSelectedAddedLine()
+    {
+        var diff = """
+            @@ -1,2 +1,4 @@
+             keep
+            +take
+            +leave
+             end
+            """;
+        var lines = DiffLineParser.Parse(diff);
+        var take = Assert.Single(lines, l => l.Kind == DiffLineKind.Added && l.DisplayText == "take");
+        var patch = SelectedDiffPatch.Build(lines, [take], "a.txt", SelectedDiffPatchMode.MatchOld);
+        Assert.Contains("+take", patch);
+        Assert.DoesNotContain("+leave", patch);
+        Assert.DoesNotContain(" leave", patch);
+        Assert.Contains("@@ -1,2 +1,3 @@", patch);
+    }
+
+    [Fact]
+    public void BuildsDiscardPatchFromSelectedAddedLine()
+    {
+        var diff = """
+            @@ -1,2 +1,4 @@
+             keep
+            +take
+            +leave
+             end
+            """;
+        var lines = DiffLineParser.Parse(diff);
+        var take = Assert.Single(lines, l => l.Kind == DiffLineKind.Added && l.DisplayText == "take");
+        var patch = SelectedDiffPatch.Build(lines, [take], "a.txt", SelectedDiffPatchMode.MatchNew);
+        Assert.Contains("+take", patch);
+        Assert.DoesNotContain("+leave", patch);
+        Assert.Contains(" leave", patch);
+    }
+
+    [Fact]
+    public void ConvertsUnselectedDeletionsToContextWhenStaging()
+    {
+        var diff = """
+            @@ -1,4 +1,2 @@
+             keep
+            -take
+            -leave
+             end
+            """;
+        var lines = DiffLineParser.Parse(diff);
+        var take = Assert.Single(lines, l => l.Kind == DiffLineKind.Removed && l.DisplayText == "take");
+        var patch = SelectedDiffPatch.Build(lines, [take], "a.txt", SelectedDiffPatchMode.MatchOld);
+        Assert.Contains("-take", patch);
+        Assert.Contains(" leave", patch);
+        Assert.DoesNotContain("-leave", patch);
+    }
+
+    [Fact]
     public void HighlightsChangedWordsOnPairedLines()
     {
         var diff = """
