@@ -132,45 +132,40 @@
                                         <TextBlock Classes="section" Text="LOCAL" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
                                 </Expander.Header>
-                                <StackPanel>
-                                    <TreeView x:Name="LocalBranchesTree"
-                                              ItemsSource="{Binding LocalTree}"
-                                              SelectedItem="{Binding SelectedLocalNode, Mode=TwoWay}"
-                                              ContextRequested="OnLocalTreeContextRequested">
-                                        <TreeView.ContextMenu>
-                                            <ContextMenu>
-                                                <MenuItem Header="Checkout" Command="{Binding CheckoutLocalCommand}" />
-                                                <MenuItem Header="Delete branch" Command="{Binding DeleteLocalBranchCommand}" />
-                                            </ContextMenu>
-                                        </TreeView.ContextMenu>
-                                        <TreeView.ItemTemplate>
-                                            <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
-                                                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                                                    <Panel Width="16" Margin="0,0,6,0" VerticalAlignment="Center">
-                                                        <TextBlock Text="▸" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding IsFolder}" />
-                                                        <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Center"
-                                                                 IsVisible="{Binding IsCurrent}" />
-                                                        <Ellipse Width="7" Height="7" Fill="{DynamicResource LineBrush}" HorizontalAlignment="Center"
-                                                                 IsVisible="{Binding IsInactiveBranch}" />
-                                                    </Panel>
-                                                    <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
-                                                               VerticalAlignment="Center" />
-                                                    <TextBlock Grid.Column="2" Text="{Binding SyncBadge}" FontSize="10"
-                                                               Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Center" Margin="6,0,0,0"
-                                                               IsVisible="{Binding HasSyncBadge}" />
-                                                    <Border Grid.Column="3" Background="{DynamicResource AccentSoftBrush}" CornerRadius="999" Padding="6,1"
-                                                            IsVisible="{Binding IsCurrent}">
-                                                        <TextBlock Text="HEAD" FontSize="10" Foreground="{DynamicResource AccentBrush}" />
-                                                    </Border>
-                                                </Grid>
-                                            </TreeDataTemplate>
-                                        </TreeView.ItemTemplate>
-                                    </TreeView>
-                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,8,0,4">
-                                        <Button Classes="ghost tiny" Content="Checkout" Command="{Binding CheckoutLocalCommand}" />
-                                        <Button Classes="danger tiny" Content="Delete" Command="{Binding DeleteLocalBranchCommand}" />
-                                    </StackPanel>
-                                </StackPanel>
+                                <TreeView x:Name="LocalBranchesTree"
+                                          ItemsSource="{Binding LocalTree}"
+                                          SelectedItem="{Binding SelectedLocalNode, Mode=TwoWay}"
+                                          ContextRequested="OnLocalTreeContextRequested">
+                                    <TreeView.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Checkout" Command="{Binding CheckoutLocalCommand}" />
+                                            <Separator />
+                                            <MenuItem Header="Delete branch" Command="{Binding DeleteLocalBranchCommand}" />
+                                        </ContextMenu>
+                                    </TreeView.ContextMenu>
+                                    <TreeView.ItemTemplate>
+                                        <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
+                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                                <Panel Width="16" Margin="0,0,6,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="▸" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding IsFolder}" />
+                                                    <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Center"
+                                                             IsVisible="{Binding IsCurrent}" />
+                                                    <Ellipse Width="7" Height="7" Fill="{DynamicResource LineBrush}" HorizontalAlignment="Center"
+                                                             IsVisible="{Binding IsInactiveBranch}" />
+                                                </Panel>
+                                                <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding SyncBadge}" FontSize="10"
+                                                           Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Center" Margin="6,0,0,0"
+                                                           IsVisible="{Binding HasSyncBadge}" />
+                                                <Border Grid.Column="3" Background="{DynamicResource AccentSoftBrush}" CornerRadius="999" Padding="6,1"
+                                                        IsVisible="{Binding IsCurrent}">
+                                                    <TextBlock Text="HEAD" FontSize="10" Foreground="{DynamicResource AccentBrush}" />
+                                                </Border>
+                                            </Grid>
+                                        </TreeDataTemplate>
+                                    </TreeView.ItemTemplate>
+                                </TreeView>
                             </Expander>
 
                             <Expander Classes="sidebar" IsExpanded="True">
@@ -182,21 +177,25 @@
                                         <TextBlock Classes="section" Text="REMOTES" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
                                 </Expander.Header>
-                                <StackPanel>
-                                    <TreeView ItemsSource="{Binding RemoteTree}" SelectedItem="{Binding SelectedRemoteNode, Mode=TwoWay}">
-                                        <TreeView.ItemTemplate>
-                                            <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
-                                                <Grid ColumnDefinitions="Auto,*">
-                                                    <TextBlock Text="▸" Foreground="{DynamicResource MutedBrush}" Margin="0,0,6,0" IsVisible="{Binding IsFolder}" />
-                                                    <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
-                                                               Foreground="{DynamicResource InfoBrush}" />
-                                                </Grid>
-                                            </TreeDataTemplate>
-                                        </TreeView.ItemTemplate>
-                                    </TreeView>
-                                    <Button Classes="ghost tiny" Content="Checkout as local" Command="{Binding CheckoutRemoteCommand}"
-                                            HorizontalAlignment="Left" Margin="4,8,0,4" />
-                                </StackPanel>
+                                <TreeView x:Name="RemoteBranchesTree"
+                                          ItemsSource="{Binding RemoteTree}"
+                                          SelectedItem="{Binding SelectedRemoteNode, Mode=TwoWay}"
+                                          ContextRequested="OnRemoteTreeContextRequested">
+                                    <TreeView.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Checkout as local" Command="{Binding CheckoutRemoteCommand}" />
+                                        </ContextMenu>
+                                    </TreeView.ContextMenu>
+                                    <TreeView.ItemTemplate>
+                                        <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <TextBlock Text="▸" Foreground="{DynamicResource MutedBrush}" Margin="0,0,6,0" IsVisible="{Binding IsFolder}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource InfoBrush}" />
+                                            </Grid>
+                                        </TreeDataTemplate>
+                                    </TreeView.ItemTemplate>
+                                </TreeView>
                             </Expander>
 
                             <Expander Classes="sidebar" IsExpanded="False">
@@ -208,21 +207,25 @@
                                         <TextBlock Classes="section" Text="TAGS" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
                                 </Expander.Header>
-                                <StackPanel>
-                                    <TreeView ItemsSource="{Binding TagTree}" SelectedItem="{Binding SelectedTagNode, Mode=TwoWay}">
-                                        <TreeView.ItemTemplate>
-                                            <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
-                                                <Grid ColumnDefinitions="Auto,*">
-                                                    <TextBlock Text="▸" Foreground="{DynamicResource MutedBrush}" Margin="0,0,6,0" IsVisible="{Binding IsFolder}" />
-                                                    <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
-                                                               Foreground="{DynamicResource WarningBrush}" />
-                                                </Grid>
-                                            </TreeDataTemplate>
-                                        </TreeView.ItemTemplate>
-                                    </TreeView>
-                                    <Button Classes="ghost tiny" Content="Checkout tag" Command="{Binding CheckoutTagCommand}"
-                                            HorizontalAlignment="Left" Margin="4,8,0,4" />
-                                </StackPanel>
+                                <TreeView x:Name="TagsTree"
+                                          ItemsSource="{Binding TagTree}"
+                                          SelectedItem="{Binding SelectedTagNode, Mode=TwoWay}"
+                                          ContextRequested="OnTagTreeContextRequested">
+                                    <TreeView.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Checkout tag" Command="{Binding CheckoutTagCommand}" />
+                                        </ContextMenu>
+                                    </TreeView.ContextMenu>
+                                    <TreeView.ItemTemplate>
+                                        <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <TextBlock Text="▸" Foreground="{DynamicResource MutedBrush}" Margin="0,0,6,0" IsVisible="{Binding IsFolder}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource WarningBrush}" />
+                                            </Grid>
+                                        </TreeDataTemplate>
+                                    </TreeView.ItemTemplate>
+                                </TreeView>
                             </Expander>
 
                             <Expander Classes="sidebar" IsExpanded="False">
@@ -234,30 +237,24 @@
                                         <TextBlock Classes="section" Text="STASHES" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
                                 </Expander.Header>
-                                <StackPanel>
-                                    <TreeView x:Name="StashesTree"
-                                              ItemsSource="{Binding StashTree}"
-                                              SelectedItem="{Binding SelectedStashNode, Mode=TwoWay}"
-                                              ContextRequested="OnStashTreeContextRequested">
-                                        <TreeView.ContextMenu>
-                                            <ContextMenu>
-                                                <MenuItem Header="Get changes" Command="{Binding StashApplyCommand}" />
-                                                <Separator />
-                                                <MenuItem Header="Drop stash" Command="{Binding StashDropCommand}" />
-                                            </ContextMenu>
-                                        </TreeView.ContextMenu>
-                                        <TreeView.ItemTemplate>
-                                            <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
-                                                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" Opacity="0.92" />
-                                            </TreeDataTemplate>
-                                        </TreeView.ItemTemplate>
-                                    </TreeView>
-                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,8,0,4">
-                                        <Button Classes="ghost tiny" Content="Get changes" Command="{Binding StashApplyCommand}"
-                                                ToolTip.Tip="Bring selected files from this stash into the working tree" />
-                                        <Button Classes="danger tiny" Content="Drop" Command="{Binding StashDropCommand}" />
-                                    </StackPanel>
-                                </StackPanel>
+                                <TreeView x:Name="StashesTree"
+                                          ItemsSource="{Binding StashTree}"
+                                          SelectedItem="{Binding SelectedStashNode, Mode=TwoWay}"
+                                          ContextRequested="OnStashTreeContextRequested">
+                                    <TreeView.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Get changes" Command="{Binding StashApplyCommand}"
+                                                      ToolTip.Tip="Bring selected files from this stash into the working tree" />
+                                            <Separator />
+                                            <MenuItem Header="Drop stash" Command="{Binding StashDropCommand}" />
+                                        </ContextMenu>
+                                    </TreeView.ContextMenu>
+                                    <TreeView.ItemTemplate>
+                                        <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
+                                            <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" Opacity="0.92" />
+                                        </TreeDataTemplate>
+                                    </TreeView.ItemTemplate>
+                                </TreeView>
                             </Expander>
 
                             <Expander Classes="sidebar" IsExpanded="True">
@@ -269,37 +266,31 @@
                                         <TextBlock Classes="section" Text="WORKTREES" Margin="0" VerticalAlignment="Center" />
                                     </DockPanel>
                                 </Expander.Header>
-                                <StackPanel>
-                                    <TreeView x:Name="WorktreesTree"
-                                              ItemsSource="{Binding WorktreeTree}"
-                                              SelectedItem="{Binding SelectedWorktreeNode, Mode=TwoWay}"
-                                              ContextRequested="OnWorktreeTreeContextRequested">
-                                        <TreeView.ContextMenu>
-                                            <ContextMenu>
-                                                <MenuItem Header="Switch to worktree" Command="{Binding SwitchWorktreeCommand}" />
-                                                <MenuItem Header="Get changes" Command="{Binding ImportWorktreeChangesCommand}" />
-                                                <Separator />
-                                                <MenuItem Header="Delete worktree" Command="{Binding RemoveWorktreeCommand}" />
-                                            </ContextMenu>
-                                        </TreeView.ContextMenu>
-                                        <TreeView.ItemTemplate>
-                                            <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
-                                                <Grid ColumnDefinitions="*,Auto">
-                                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource AccentHoverBrush}" />
-                                                    <Border Grid.Column="1" Background="{DynamicResource AccentSubtleBrush}" CornerRadius="999" Padding="6,1"
-                                                            IsVisible="{Binding IsCurrent}">
-                                                        <TextBlock Text="HERE" FontSize="10" Foreground="{DynamicResource AccentHoverBrush}" />
-                                                    </Border>
-                                                </Grid>
-                                            </TreeDataTemplate>
-                                        </TreeView.ItemTemplate>
-                                    </TreeView>
-                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,8,0,4">
-                                        <Button Classes="ghost tiny" Content="Switch" Command="{Binding SwitchWorktreeCommand}" />
-                                        <Button Classes="accent tiny" Content="Get changes" Command="{Binding ImportWorktreeChangesCommand}"
-                                                ToolTip.Tip="Merge the selected worktree into the current branch" />
-                                    </StackPanel>
-                                </StackPanel>
+                                <TreeView x:Name="WorktreesTree"
+                                          ItemsSource="{Binding WorktreeTree}"
+                                          SelectedItem="{Binding SelectedWorktreeNode, Mode=TwoWay}"
+                                          ContextRequested="OnWorktreeTreeContextRequested">
+                                    <TreeView.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Switch to worktree" Command="{Binding SwitchWorktreeCommand}" />
+                                            <MenuItem Header="Get changes" Command="{Binding ImportWorktreeChangesCommand}"
+                                                      ToolTip.Tip="Merge the selected worktree into the current branch" />
+                                            <Separator />
+                                            <MenuItem Header="Delete worktree" Command="{Binding RemoveWorktreeCommand}" />
+                                        </ContextMenu>
+                                    </TreeView.ContextMenu>
+                                    <TreeView.ItemTemplate>
+                                        <TreeDataTemplate x:DataType="vm:RefTreeNode" ItemsSource="{Binding Children}">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource AccentHoverBrush}" />
+                                                <Border Grid.Column="1" Background="{DynamicResource AccentSubtleBrush}" CornerRadius="999" Padding="6,1"
+                                                        IsVisible="{Binding IsCurrent}">
+                                                    <TextBlock Text="HERE" FontSize="10" Foreground="{DynamicResource AccentHoverBrush}" />
+                                                </Border>
+                                            </Grid>
+                                        </TreeDataTemplate>
+                                    </TreeView.ItemTemplate>
+                                </TreeView>
                             </Expander>
                         </StackPanel>
                     </ScrollViewer>

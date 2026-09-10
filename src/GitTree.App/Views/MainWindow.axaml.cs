@@ -49,6 +49,18 @@ public partial class MainWindow : Window
             vm.SelectedLocalNode = node;
     }
 
+    private void OnRemoteTreeContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (SelectTreeNode(sender, e) is { } node && DataContext is MainViewModel vm)
+            vm.SelectedRemoteNode = node;
+    }
+
+    private void OnTagTreeContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (SelectTreeNode(sender, e) is { } node && DataContext is MainViewModel vm)
+            vm.SelectedTagNode = node;
+    }
+
     private void OnWorktreeTreeContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (SelectTreeNode(sender, e) is { } node && DataContext is MainViewModel vm)
