@@ -63,7 +63,8 @@ public enum DiffKind
 {
     WorkTree,
     Index,
-    Commit
+    Commit,
+    Stash
 }
 
 public enum DiffPatchAction
@@ -91,6 +92,7 @@ public sealed class DiffRequest
     public required DiffKind Kind { get; init; }
     public string? Path { get; init; }
     public string? CommitSha { get; init; }
+    public int? StashIndex { get; init; }
 }
 
 public interface IGitHistoryReader
@@ -120,9 +122,10 @@ public interface IGitRepository : IDisposable
     Task<string> PullAsync(CancellationToken cancellationToken = default);
     Task<string> PushAsync(string? remote = null, string? branch = null, CancellationToken cancellationToken = default);
 
-    Task StashSaveAsync(string? message = null, CancellationToken cancellationToken = default);
-    Task StashApplyAsync(int index, CancellationToken cancellationToken = default);
+    Task StashSaveAsync(string? message = null, IReadOnlyList<string>? paths = null, CancellationToken cancellationToken = default);
+    Task StashApplyAsync(int index, IReadOnlyList<string>? paths = null, CancellationToken cancellationToken = default);
     Task StashDropAsync(int index, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<FileChange>> GetStashFilesAsync(int index, CancellationToken cancellationToken = default);
 
     Task<WorktreeImportPreview> GetWorktreeImportPreviewAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default);
     Task ImportChangesFromWorktreeAsync(WorktreeInfo worktree, WorktreeImportSelection? selection = null, CancellationToken cancellationToken = default);

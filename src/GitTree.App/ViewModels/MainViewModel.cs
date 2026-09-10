@@ -60,6 +60,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private int _stashCount;
     [ObservableProperty] private int _worktreeCount;
     [ObservableProperty] private bool _isShowingCommitFiles;
+    [ObservableProperty] private string _revisionFilesHeading = "CHANGED IN COMMIT";
+    [ObservableProperty] private string _revisionFilesSha = "";
+    [ObservableProperty] private string _revisionFilesSubject = "";
     [ObservableProperty] private bool _needsRefresh;
     [ObservableProperty] private int _aheadCount;
     [ObservableProperty] private int _behindCount;
@@ -157,23 +160,37 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedCommitChanged(CommitNode? value)
     {
-        IsShowingCommitFiles = value is not null;
         if (value is not null)
+        {
+            if (SelectedStashNode is not null)
+                SelectedStashNode = null;
+            IsShowingCommitFiles = true;
             _ = LoadCommitAsync(value);
-        else
+            return;
+        }
+
+        if (SelectedStash is null)
+        {
+            IsShowingCommitFiles = false;
             _ = ShowWorkingTreeDiffAsync();
+        }
     }
 
     [RelayCommand]
     private void ShowWorkingTree()
     {
         SelectedCommit = null;
+        SelectedStashNode = null;
         SelectedCommitFile = null;
     }
 
     partial void OnSelectedCommitFileChanged(FileChange? value)
     {
-        if (value is not null && SelectedCommit is not null)
+        if (value is null)
+            return;
+        if (SelectedStash is not null)
+            _ = LoadStashFileDiffAsync(SelectedStash, value);
+        else if (SelectedCommit is not null)
             _ = LoadCommitFileDiffAsync(SelectedCommit, value);
     }
 
@@ -207,8 +224,24 @@ public partial class MainViewModel : ViewModelBase
         RevealCommit(value?.Tag?.TargetSha);
     }
 
-    partial void OnSelectedStashNodeChanged(RefTreeNode? value) =>
+    partial void OnSelectedStashNodeChanged(RefTreeNode? value)
+    {
         SelectedStash = value?.Stash;
+        if (SelectedStash is not null)
+        {
+            if (SelectedCommit is not null)
+                SelectedCommit = null;
+            IsShowingCommitFiles = true;
+            _ = LoadStashAsync(SelectedStash);
+            return;
+        }
+
+        if (SelectedCommit is null)
+        {
+            IsShowingCommitFiles = false;
+            _ = ShowWorkingTreeDiffAsync();
+        }
+    }
 
     partial void OnSelectedWorktreeNodeChanged(RefTreeNode? value)
     {
@@ -911,14 +944,66 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private Task StashSaveAsync() => MutateAsync(r => r.StashSaveAsync());
+    private async Task StashSaveAsync()
+    {
+        var files = CurrentWorkingFiles();
+        if (files.Count == 0)
+        {
+            ErrorMessage = "Nothing to stash.";
+            return;
+        }
+
+        var pick = await ShowStashPickAsync(
+            "Stash changes",
+            "Choose a name and the files to stash. Unselected files stay in the working tree.",
+            "Stash",
+            files,
+            showMessage: true);
+        if (pick is null)
+            return;
+
+        var name = string.IsNullOrWhiteSpace(pick.Message) ? null : pick.Message.Trim();
+        _pendingStatus = name is null
+            ? $"Stashed {DescribeFiles(pick.SelectedPaths.Count)}."
+            : $"Stashed {DescribeFiles(pick.SelectedPaths.Count)} as “{name}”.";
+        await MutateAsync(r => r.StashSaveAsync(name, pick.SelectedPaths));
+    }
 
     [RelayCommand]
-    private Task StashApplyAsync()
+    private async Task StashApplyAsync()
     {
-        if (SelectedStash is null)
-            return Task.CompletedTask;
-        return MutateAsync(r => r.StashApplyAsync(SelectedStash.Index));
+        if (SelectedStash is null || _repo is null)
+            return;
+
+        IReadOnlyList<FileChange> files;
+        try
+        {
+            IsBusy = true;
+            ErrorMessage = "";
+            files = await _repo.GetStashFilesAsync(SelectedStash.Index);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+            return;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        var pick = await ShowStashPickAsync(
+            "Get stash changes",
+            "Select the files to bring back from this stash. The stash itself is kept.",
+            "Get changes",
+            files,
+            showMessage: false);
+        if (pick is null)
+            return;
+
+        var stash = SelectedStash;
+        _pendingStatus = $"Brought {DescribeFiles(pick.SelectedPaths.Count)} from {stash.Selector}.";
+        await MutateAsync(r => r.StashApplyAsync(stash.Index, pick.SelectedPaths));
     }
 
     [RelayCommand]
@@ -1095,6 +1180,7 @@ public partial class MainViewModel : ViewModelBase
         if (_repo is null)
             return;
         ShowConflictEditor = false;
+        SetRevisionHeader("CHANGED IN COMMIT", commit.ShortSha, commit.Subject);
         var files = await _repo.GetCommitFilesAsync(commit.Sha);
         Replace(CommitFiles, files);
         SelectedCommitFile = files.Count > 0 ? files[0] : null;
@@ -1102,6 +1188,23 @@ public partial class MainViewModel : ViewModelBase
         {
             DiffHeader = $"{commit.ShortSha} • no file changes";
             ActiveDiffKind = DiffKind.Commit;
+            SetDiffLines([]);
+        }
+    }
+
+    private async Task LoadStashAsync(StashEntry stash)
+    {
+        if (_repo is null)
+            return;
+        ShowConflictEditor = false;
+        SetRevisionHeader("CHANGED IN STASH", stash.Selector, stash.Message);
+        var files = await _repo.GetStashFilesAsync(stash.Index);
+        Replace(CommitFiles, files);
+        SelectedCommitFile = files.Count > 0 ? files[0] : null;
+        if (SelectedCommitFile is null)
+        {
+            DiffHeader = $"{stash.Selector} • no file changes";
+            ActiveDiffKind = DiffKind.Stash;
             SetDiffLines([]);
         }
     }
@@ -1143,6 +1246,55 @@ public partial class MainViewModel : ViewModelBase
         var text = await _repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.Commit, CommitSha = commit.Sha, Path = file.Path });
         SetDiffLines(DiffLineParser.Parse(text));
     }
+
+    private async Task LoadStashFileDiffAsync(StashEntry stash, FileChange file)
+    {
+        if (_repo is null)
+            return;
+        ShowConflictEditor = false;
+        ActiveDiffKind = DiffKind.Stash;
+        DiffHeader = $"{stash.Selector} • {file.DisplayPath}";
+        var text = await _repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.Stash, StashIndex = stash.Index, Path = file.Path });
+        if (string.IsNullOrWhiteSpace(text) && file.IndexStatus == FileChangeKind.Untracked)
+        {
+            SetDiffLines([]);
+            return;
+        }
+
+        SetDiffLines(DiffLineParser.Parse(text));
+    }
+
+    private void SetRevisionHeader(string heading, string sha, string subject)
+    {
+        RevisionFilesHeading = heading;
+        RevisionFilesSha = sha;
+        RevisionFilesSubject = subject;
+    }
+
+    private IReadOnlyList<FileChange> CurrentWorkingFiles() =>
+        Unstaged.Concat(Staged)
+            .GroupBy(f => f.Path, StringComparer.Ordinal)
+            .Select(g => g.First())
+            .ToList();
+
+    private async Task<StashPickViewModel?> ShowStashPickAsync(
+        string title,
+        string subtitle,
+        string confirmText,
+        IReadOnlyList<FileChange> files,
+        bool showMessage)
+    {
+        var dialogVm = new StashPickViewModel(title, subtitle, confirmText, files, showMessage);
+        if (Host is null)
+            return dialogVm.CanConfirm ? dialogVm : null;
+
+        var window = new StashPickWindow { DataContext = dialogVm };
+        await window.ShowDialog(Host);
+        return dialogVm.Confirmed && dialogVm.CanConfirm ? dialogVm : null;
+    }
+
+    private static string DescribeFiles(int count) =>
+        count == 1 ? "1 file" : $"{count} files";
 
     private void SetDiffLines(IEnumerable<DiffLine> lines)
     {

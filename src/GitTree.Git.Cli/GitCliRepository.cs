@@ -215,16 +215,100 @@ public sealed class GitCliRepository : IGitRepository
         return string.IsNullOrWhiteSpace(output) ? "Pushed." : output;
     }
 
-    public Task StashSaveAsync(string? message = null, CancellationToken cancellationToken = default)
-        => _git.RunAsync(string.IsNullOrWhiteSpace(message)
-            ? ["stash", "push", "-u"]
-            : ["stash", "push", "-u", "-m", message], cancellationToken: cancellationToken);
+    public Task StashSaveAsync(string? message = null, IReadOnlyList<string>? paths = null, CancellationToken cancellationToken = default)
+    {
+        var args = new List<string> { "stash", "push", "-u" };
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            args.Add("-m");
+            args.Add(message);
+        }
 
-    public Task StashApplyAsync(int index, CancellationToken cancellationToken = default)
-        => _git.RunAsync(["stash", "apply", $"stash@{{{index}}}"], cancellationToken: cancellationToken);
+        var selected = paths?.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+        if (selected is { Count: > 0 })
+        {
+            args.Add("--");
+            args.AddRange(selected);
+        }
+
+        return _git.RunAsync(args, cancellationToken: cancellationToken);
+    }
+
+    public async Task StashApplyAsync(int index, IReadOnlyList<string>? paths = null, CancellationToken cancellationToken = default)
+    {
+        var selector = StashSelector(index);
+        var selected = paths?.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.Ordinal).ToList();
+        if (selected is not { Count: > 0 })
+        {
+            await _git.RunAsync(["stash", "apply", selector], cancellationToken: cancellationToken);
+            return;
+        }
+
+        var files = await GetStashFilesAsync(index, cancellationToken);
+        var chosen = files.Where(f => selected.Contains(f.Path) || (f.OldPath is not null && selected.Contains(f.OldPath))).ToList();
+        if (chosen.Count == files.Count && files.Count > 0)
+        {
+            await _git.RunAsync(["stash", "apply", selector], cancellationToken: cancellationToken);
+            return;
+        }
+
+        if (chosen.Count == 0)
+        {
+            await RunPaths(["checkout", selector, "--"], selected, cancellationToken);
+            return;
+        }
+
+        var tracked = chosen
+            .Where(f => f.IndexStatus != FileChangeKind.Untracked)
+            .SelectMany(f => f.OldPath is null ? new[] { f.Path } : new[] { f.OldPath, f.Path })
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var untracked = chosen
+            .Where(f => f.IndexStatus == FileChangeKind.Untracked)
+            .Select(f => f.Path)
+            .ToList();
+
+        if (tracked.Count > 0)
+            await RunPaths(["checkout", selector, "--"], tracked, cancellationToken);
+        if (untracked.Count > 0 && await HasStashUntrackedAsync(selector, cancellationToken))
+            await RunPaths(["checkout", $"{selector}^3", "--"], untracked, cancellationToken);
+    }
 
     public Task StashDropAsync(int index, CancellationToken cancellationToken = default)
-        => _git.RunAsync(["stash", "drop", $"stash@{{{index}}}"], cancellationToken: cancellationToken);
+        => _git.RunAsync(["stash", "drop", StashSelector(index)], cancellationToken: cancellationToken);
+
+    public async Task<IReadOnlyList<FileChange>> GetStashFilesAsync(int index, CancellationToken cancellationToken = default)
+    {
+        var selector = StashSelector(index);
+        var output = await _git.RunAsync(
+            ["stash", "show", "--name-status", selector],
+            throwOnError: false,
+            cancellationToken: cancellationToken);
+        var files = ParseNameStatus(output).ToList();
+        if (!await HasStashUntrackedAsync(selector, cancellationToken))
+            return files;
+
+        var untracked = await _git.RunAsync(
+            ["ls-tree", "-r", "--name-only", $"{selector}^3"],
+            throwOnError: false,
+            cancellationToken: cancellationToken);
+        var seen = files.Select(f => f.Path).ToHashSet(StringComparer.Ordinal);
+        foreach (var line in untracked.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var path = line.Replace('\\', '/');
+            if (!seen.Add(path))
+                continue;
+            files.Add(new FileChange
+            {
+                Path = path,
+                IndexStatus = FileChangeKind.Untracked,
+                WorkTreeStatus = FileChangeKind.Untracked,
+                IsConflict = false
+            });
+        }
+
+        return files;
+    }
 
     public async Task<WorktreeImportPreview> GetWorktreeImportPreviewAsync(WorktreeInfo worktree, CancellationToken cancellationToken = default)
     {
@@ -628,37 +712,7 @@ public sealed class GitCliRepository : IGitRepository
             ["diff-tree", "--no-commit-id", "-r", "-M", "--name-status", sha],
             throwOnError: false,
             cancellationToken: cancellationToken);
-        var list = new List<FileChange>();
-        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var parts = line.Split('\t');
-            if (parts.Length < 2)
-                continue;
-            var code = parts[0][0];
-            var kind = StatusPorcelainParser.ParseStatusChar(code);
-            string path;
-            string? oldPath = null;
-            if (parts.Length >= 3)
-            {
-                oldPath = parts[1];
-                path = parts[2];
-            }
-            else
-            {
-                path = parts[1];
-            }
-
-            list.Add(new FileChange
-            {
-                Path = path.Replace('\\', '/'),
-                OldPath = oldPath,
-                IndexStatus = kind,
-                WorkTreeStatus = FileChangeKind.Unmodified,
-                IsConflict = false
-            });
-        }
-
-        return list;
+        return ParseNameStatus(output);
     }
 
     public async Task<string> GetDiffAsync(DiffRequest request, CancellationToken cancellationToken = default)
@@ -668,6 +722,8 @@ public sealed class GitCliRepository : IGitRepository
             DiffKind.Index => await _git.RunAsync(WithPath(["diff", "--cached"], request.Path), throwOnError: false, cancellationToken: cancellationToken),
             DiffKind.Commit when request.CommitSha is not null =>
                 await _git.RunAsync(WithPath(["show", "--format=", request.CommitSha], request.Path), throwOnError: false, cancellationToken: cancellationToken),
+            DiffKind.Stash when request.StashIndex is int stashIndex =>
+                await GetStashDiffAsync(stashIndex, request.Path, cancellationToken),
             _ => await _git.RunAsync(WithPath(["diff"], request.Path), throwOnError: false, cancellationToken: cancellationToken)
         };
     }
@@ -709,11 +765,92 @@ public sealed class GitCliRepository : IGitRepository
         await _git.RunAsync(args, cancellationToken: cancellationToken);
     }
 
-    private static string[] WithPath(string[] args, string? path)
+    private static string[] WithPath(IReadOnlyList<string> args, string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
-            return args;
+            return args as string[] ?? args.ToArray();
         return [..args, "--", path];
+    }
+
+    private static string StashSelector(int index) => $"stash@{{{index}}}";
+
+    private async Task<string> GetStashDiffAsync(int index, string? path, CancellationToken cancellationToken)
+    {
+        var selector = StashSelector(index);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return await _git.RunAsync(
+                ["stash", "show", "-p", "--include-untracked", selector],
+                throwOnError: false,
+                cancellationToken: cancellationToken);
+        }
+
+        var tracked = await _git.RunAsync(
+            ["diff", $"{selector}^1", selector, "--", path],
+            throwOnError: false,
+            cancellationToken: cancellationToken);
+        if (!string.IsNullOrWhiteSpace(tracked))
+            return tracked;
+
+        var untracked = await _git.RunAsync(
+            ["show", $"{selector}^3:{path.Replace('\\', '/')}"],
+            throwOnError: false,
+            cancellationToken: cancellationToken);
+        return string.IsNullOrWhiteSpace(untracked) ? "" : FormatNewFileDiff(path, untracked);
+    }
+
+    private static string FormatNewFileDiff(string path, string content)
+    {
+        var normalized = path.Replace('\\', '/');
+        var lines = content.Replace("\r\n", "\n").Split('\n');
+        if (lines.Length > 0 && lines[^1].Length == 0)
+            lines = lines[..^1];
+        var body = string.Join('\n', lines.Select(l => "+" + l));
+        return $"diff --git a/{normalized} b/{normalized}\nnew file mode 100644\n--- /dev/null\n+++ b/{normalized}\n@@ -0,0 +1,{lines.Length} @@\n{body}\n";
+    }
+
+    private async Task<bool> HasStashUntrackedAsync(string selector, CancellationToken cancellationToken)
+    {
+        var sha = await _git.RunAsync(
+            ["rev-parse", "--verify", "--quiet", $"{selector}^3"],
+            throwOnError: false,
+            cancellationToken: cancellationToken);
+        return !string.IsNullOrWhiteSpace(sha);
+    }
+
+    private static IReadOnlyList<FileChange> ParseNameStatus(string output)
+    {
+        var list = new List<FileChange>();
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var parts = line.Split('\t');
+            if (parts.Length < 2)
+                continue;
+            var code = parts[0][0];
+            var kind = StatusPorcelainParser.ParseStatusChar(code);
+            string path;
+            string? oldPath = null;
+            if (parts.Length >= 3)
+            {
+                oldPath = parts[1];
+                path = parts[2];
+            }
+            else
+            {
+                path = parts[1];
+            }
+
+            list.Add(new FileChange
+            {
+                Path = path.Replace('\\', '/'),
+                OldPath = oldPath,
+                IndexStatus = kind,
+                WorkTreeStatus = FileChangeKind.Unmodified,
+                IsConflict = false
+            });
+        }
+
+        return list;
     }
 
     private static IReadOnlyList<BranchRef> ParseBranches(string output)

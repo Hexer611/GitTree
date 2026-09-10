@@ -1,0 +1,72 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GitTree.App.ViewModels"
+        x:Class="GitTree.App.Views.StashPickWindow"
+        x:DataType="vm:StashPickViewModel"
+        Title="{Binding Title}"
+        Width="560" Height="520"
+        MinWidth="440" MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <DockPanel Margin="18">
+        <TextBlock DockPanel.Dock="Top" Text="{Binding Title}" FontSize="22" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock DockPanel.Dock="Top"
+                   Text="{Binding Subtitle}"
+                   Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,14" />
+
+        <Border DockPanel.Dock="Bottom" Margin="0,14,0,0">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="{Binding Summary}" Foreground="{DynamicResource MutedBrush}"
+                           TextWrapping="Wrap" MaxWidth="280" VerticalAlignment="Center" Margin="0,0,12,0" />
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Classes="ghost" Content="Cancel" Command="{Binding CancelCommand}" />
+                    <Button Classes="accent" Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" Margin="0,10,0,0"
+                    IsVisible="{Binding !IsEmpty}">
+            <Button Classes="ghost tiny" Content="Select all" Command="{Binding SelectAllCommand}" />
+            <Button Classes="ghost tiny" Content="Select none" Command="{Binding SelectNoneCommand}" />
+        </StackPanel>
+
+        <Grid>
+            <TextBlock Text="There are no file changes to choose from."
+                       Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
+                       IsVisible="{Binding IsEmpty}" VerticalAlignment="Center" HorizontalAlignment="Left" />
+
+            <ScrollViewer IsVisible="{Binding !IsEmpty}">
+                <StackPanel Spacing="14">
+                    <Border Classes="pane" Padding="12" IsVisible="{Binding ShowMessage}">
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="section" Text="STASH NAME" Margin="0" />
+                            <TextBox Text="{Binding Message}" PlaceholderText="Optional name" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="pane" Padding="12" IsVisible="{Binding HasFiles}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="section" Text="FILES" Margin="0" />
+                            <ItemsControl ItemsSource="{Binding Files}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:WorktreeImportItem">
+                                        <CheckBox IsChecked="{Binding IsSelected}" Margin="0,2">
+                                            <StackPanel Spacing="1">
+                                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap"
+                                                           FontFamily="Cascadia Mono, Consolas, monospace" />
+                                                <TextBlock Text="{Binding Subtitle}" FontSize="11"
+                                                           Foreground="{DynamicResource MutedBrush}" />
+                                            </StackPanel>
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</Window>

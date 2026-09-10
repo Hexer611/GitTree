@@ -64,6 +64,52 @@ public class GitCliRepositoryTests
     }
 
     [Fact]
+    public async Task StashSaveApplyAndShowSelectedFiles()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "keep.txt"), "keep\n");
+            await File.WriteAllTextAsync(Path.Combine(root, "take.txt"), "base\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["keep.txt", "take.txt"]);
+            await repo.CommitAsync("base");
+
+            await File.WriteAllTextAsync(Path.Combine(root, "keep.txt"), "keep-changed\n");
+            await File.WriteAllTextAsync(Path.Combine(root, "take.txt"), "take-changed\n");
+            await File.WriteAllTextAsync(Path.Combine(root, "new.txt"), "untracked\n");
+            await repo.StashSaveAsync("named-wip", ["take.txt", "new.txt"]);
+
+            var afterSave = await repo.RefreshAsync();
+            var stash = Assert.Single(afterSave.Stashes);
+            Assert.Contains("named-wip", stash.Message);
+            Assert.Contains(afterSave.Changes, c => c.Path == "keep.txt");
+            Assert.DoesNotContain(afterSave.Changes, c => c.Path == "take.txt");
+            Assert.DoesNotContain(afterSave.Changes, c => c.Path == "new.txt");
+
+            var stashFiles = await repo.GetStashFilesAsync(0);
+            Assert.Contains(stashFiles, f => f.Path == "take.txt");
+            Assert.Contains(stashFiles, f => f.Path == "new.txt");
+            Assert.DoesNotContain(stashFiles, f => f.Path == "keep.txt");
+
+            var stashDiff = await repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.Stash, StashIndex = 0, Path = "take.txt" });
+            Assert.Contains("+take-changed", stashDiff);
+            var untrackedDiff = await repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.Stash, StashIndex = 0, Path = "new.txt" });
+            Assert.Contains("+untracked", untrackedDiff);
+
+            await repo.StashApplyAsync(0, ["new.txt"]);
+            var afterApply = await repo.RefreshAsync();
+            Assert.Contains(afterApply.Changes, c => c.Path == "new.txt");
+            Assert.Equal("base\n", await File.ReadAllTextAsync(Path.Combine(root, "take.txt")));
+            Assert.Equal("untracked\n", await File.ReadAllTextAsync(Path.Combine(root, "new.txt")));
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
     public async Task ListsWorktreesAndImportsCommitsAndUntracked()
     {
         var root = CreateTempRepo();

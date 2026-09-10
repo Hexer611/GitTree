@@ -55,6 +55,12 @@ public partial class MainWindow : Window
             vm.SelectedWorktreeNode = node;
     }
 
+    private void OnStashTreeContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (SelectTreeNode(sender, e) is { } node && DataContext is MainViewModel vm)
+            vm.SelectedStashNode = node;
+    }
+
     private void OnCommitListContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (sender is not ListBox list)
