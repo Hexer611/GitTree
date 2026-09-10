@@ -110,6 +110,59 @@ public class GitCliRepositoryTests
     }
 
     [Fact]
+    public async Task StashApplySelectedFilesKeepsUnrelatedLocalLines()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "script.txt"), "AAA\nBBB\nCCC\nDDD\nEEE\nFFF\nGGG\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["script.txt"]);
+            await repo.CommitAsync("base");
+
+            await File.WriteAllTextAsync(Path.Combine(root, "script.txt"), "AAA\nSTASHED\nCCC\nDDD\nEEE\nFFF\nGGG\n");
+            await repo.StashSaveAsync("wip", ["script.txt"]);
+
+            await File.WriteAllTextAsync(Path.Combine(root, "script.txt"), "AAA\nBBB\nCCC\nDDD\nEEE\nFFF\nLOCAL\n");
+            await repo.StashApplyAsync(0, ["script.txt"]);
+
+            var text = (await File.ReadAllTextAsync(Path.Combine(root, "script.txt"))).Replace("\r\n", "\n");
+            Assert.Equal("AAA\nSTASHED\nCCC\nDDD\nEEE\nFFF\nLOCAL\n", text);
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task StashApplyAllKeepsUnrelatedLocalLines()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "script.txt"), "AAA\nBBB\nCCC\nDDD\nEEE\nFFF\nGGG\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["script.txt"]);
+            await repo.CommitAsync("base");
+
+            await File.WriteAllTextAsync(Path.Combine(root, "script.txt"), "AAA\nSTASHED\nCCC\nDDD\nEEE\nFFF\nGGG\n");
+            await repo.StashSaveAsync("wip");
+
+            await File.WriteAllTextAsync(Path.Combine(root, "script.txt"), "AAA\nLOCAL\nCCC\nDDD\nEEE\nFFF\nWIP\n");
+            await repo.StashApplyAsync(0);
+
+            var text = (await File.ReadAllTextAsync(Path.Combine(root, "script.txt"))).Replace("\r\n", "\n");
+            Assert.Equal("AAA\nSTASHED\nCCC\nDDD\nEEE\nFFF\nWIP\n", text);
+            Assert.DoesNotContain((await repo.RefreshAsync()).Changes, c => c.IsConflict);
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
     public async Task ListsWorktreesAndImportsCommitsAndUntracked()
     {
         var root = CreateTempRepo();
@@ -200,7 +253,7 @@ public class GitCliRepositoryTests
         try
         {
             await File.WriteAllTextAsync(Path.Combine(root, "README.md"), "from main\n");
-            await File.WriteAllTextAsync(Path.Combine(root, "config.json"), """{"name":"main"}""" + "\n");
+            await File.WriteAllTextAsync(Path.Combine(root, "config.json"), "{\n  \"name\": \"main\",\n  \"count\": 1\n}\n");
             using var repo = new GitCliRepository(root);
             await repo.StageAsync(["README.md", "config.json"]);
             await repo.CommitAsync("main files");
@@ -208,11 +261,11 @@ public class GitCliRepositoryTests
             Run(root, "worktree", "add", wt, "other");
 
             await File.WriteAllTextAsync(Path.Combine(wt, "README.md"), "from other\n");
-            await File.WriteAllTextAsync(Path.Combine(wt, "config.json"), """{"name":"other"}""" + "\n");
+            await File.WriteAllTextAsync(Path.Combine(wt, "config.json"), "{\n  \"name\": \"other\",\n  \"count\": 1\n}\n");
             Run(wt, "add", "README.md", "config.json");
             Run(wt, "commit", "-m", "other files");
             await File.WriteAllTextAsync(Path.Combine(wt, "README.md"), "from other\nextra heading\n");
-            await File.WriteAllTextAsync(Path.Combine(wt, "config.json"), """{"name":"other","ok":true}""" + "\n");
+            await File.WriteAllTextAsync(Path.Combine(wt, "config.json"), "{\n  \"name\": \"other\",\n  \"count\": 1,\n  \"ok\": true\n}\n");
 
             var snap = await repo.RefreshAsync();
             var other = snap.Worktrees.Single(w => !w.IsCurrent);
@@ -226,8 +279,8 @@ public class GitCliRepositoryTests
 
             var readme = (await File.ReadAllTextAsync(Path.Combine(root, "README.md"))).Replace("\r\n", "\n");
             var json = (await File.ReadAllTextAsync(Path.Combine(root, "config.json"))).Replace("\r\n", "\n");
-            Assert.Equal("from other\nextra heading\n", readme);
-            Assert.Equal("""{"name":"other","ok":true}""" + "\n", json);
+            Assert.Equal("from main\nextra heading\n", readme);
+            Assert.Equal("{\n  \"name\": \"main\",\n  \"count\": 1,\n  \"ok\": true\n}\n", json);
         }
         finally
         {
@@ -273,7 +326,7 @@ public class GitCliRepositoryTests
     }
 
     [Fact]
-    public async Task ImportsSameHunkPrefersWorktreeVersion()
+    public async Task ImportsSameHunkTakesIncomingLine()
     {
         var root = CreateTempRepo();
         var wt = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + "-wt");
@@ -309,7 +362,7 @@ public class GitCliRepositoryTests
     }
 
     [Fact]
-    public async Task ImportMergePrefersIncomingOnOverlappingCommits()
+    public async Task ImportMergeConflictsOnOverlappingCommits()
     {
         var root = CreateTempRepo();
         var wt = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + "-wt");
@@ -332,15 +385,17 @@ public class GitCliRepositoryTests
 
             var snap = await repo.RefreshAsync();
             var other = snap.Worktrees.Single(w => !w.IsCurrent);
-            await repo.ImportChangesFromWorktreeAsync(other, new WorktreeImportSelection
+            await Assert.ThrowsAsync<GitException>(() => repo.ImportChangesFromWorktreeAsync(other, new WorktreeImportSelection
             {
                 MergeBranch = true
-            });
+            }));
 
             var after = await repo.RefreshAsync();
-            Assert.False(after.Operation.IsMerging);
-            Assert.DoesNotContain(after.Changes, c => c.IsConflict);
-            Assert.Equal("theirs\n", (await File.ReadAllTextAsync(Path.Combine(root, "f.txt"))).Replace("\r\n", "\n"));
+            Assert.True(after.Operation.IsMerging);
+            Assert.Contains(after.Changes, c => c.IsConflict && c.Path == "f.txt");
+            var text = (await File.ReadAllTextAsync(Path.Combine(root, "f.txt"))).Replace("\r\n", "\n");
+            Assert.Contains("ours", text);
+            Assert.Contains("theirs", text);
         }
         finally
         {

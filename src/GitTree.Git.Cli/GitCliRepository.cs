@@ -238,40 +238,29 @@ public sealed class GitCliRepository : IGitRepository
     {
         var selector = StashSelector(index);
         var selected = paths?.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.Ordinal).ToList();
-        if (selected is not { Count: > 0 })
-        {
-            await _git.RunAsync(["stash", "apply", selector], cancellationToken: cancellationToken);
-            return;
-        }
-
         var files = await GetStashFilesAsync(index, cancellationToken);
-        var chosen = files.Where(f => selected.Contains(f.Path) || (f.OldPath is not null && selected.Contains(f.OldPath))).ToList();
-        if (chosen.Count == files.Count && files.Count > 0)
-        {
-            await _git.RunAsync(["stash", "apply", selector], cancellationToken: cancellationToken);
-            return;
-        }
+        var chosen = selected is not { Count: > 0 }
+            ? files.ToList()
+            : files.Where(f => selected.Contains(f.Path) || (f.OldPath is not null && selected.Contains(f.OldPath))).ToList();
+        var tracked = chosen.Where(f => f.IndexStatus != FileChangeKind.Untracked).ToList();
+        var untracked = chosen.Where(f => f.IndexStatus == FileChangeKind.Untracked).Select(f => f.Path).ToList();
+        if (tracked.Count == 0 && untracked.Count == 0 && selected is { Count: > 0 })
+            tracked = selected.Select(path => new FileChange
+            {
+                Path = path.Replace('\\', '/'),
+                IndexStatus = FileChangeKind.Modified,
+                WorkTreeStatus = FileChangeKind.Unmodified,
+                IsConflict = false
+            }).ToList();
 
-        if (chosen.Count == 0)
-        {
-            await RunPaths(["checkout", selector, "--"], selected, cancellationToken);
-            return;
-        }
+        foreach (var file in tracked)
+            await ApplyStashTrackedFileAsync(selector, file, cancellationToken);
 
-        var tracked = chosen
-            .Where(f => f.IndexStatus != FileChangeKind.Untracked)
-            .SelectMany(f => f.OldPath is null ? new[] { f.Path } : new[] { f.OldPath, f.Path })
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        var untracked = chosen
-            .Where(f => f.IndexStatus == FileChangeKind.Untracked)
-            .Select(f => f.Path)
-            .ToList();
-
-        if (tracked.Count > 0)
-            await RunPaths(["checkout", selector, "--"], tracked, cancellationToken);
         if (untracked.Count > 0 && await HasStashUntrackedAsync(selector, cancellationToken))
-            await RunPaths(["checkout", $"{selector}^3", "--"], untracked, cancellationToken);
+        {
+            foreach (var path in untracked)
+                await ApplyStashUntrackedFileAsync(selector, path, cancellationToken);
+        }
     }
 
     public Task StashDropAsync(int index, CancellationToken cancellationToken = default)
@@ -341,7 +330,7 @@ public sealed class GitCliRepository : IGitRepository
             try
             {
                 await _git.RunAsync(
-                    ["merge", "--no-edit", "-X", "theirs", worktree.MergeRef],
+                    ["merge", "--no-edit", worktree.MergeRef],
                     cancellationToken: cancellationToken);
             }
             catch (GitException ex)
@@ -425,98 +414,169 @@ public sealed class GitCliRepository : IGitRepository
 
     private async Task ImportTrackedFilesAsync(string other, IReadOnlyList<FileChange> files, CancellationToken cancellationToken)
     {
-        var mergeBase = await ResolveMergeBaseAsync(other, cancellationToken);
-        foreach (var file in files)
-        {
-            if (file.IndexStatus == FileChangeKind.Untracked)
-                continue;
-            await ImportTrackedFileAsync(other, file, mergeBase, cancellationToken);
-        }
-    }
-
-    private async Task ImportTrackedFileAsync(
-        string other,
-        FileChange file,
-        string? mergeBase,
-        CancellationToken cancellationToken)
-    {
-        var relative = file.Path.Replace('\\', '/');
-        var source = CombineUnderRoot(other, relative);
-        var dest = CombineUnderRoot(WorkingDirectory, relative);
-        var deleted = file.IndexStatus == FileChangeKind.Deleted
-                      || file.WorkTreeStatus == FileChangeKind.Deleted
-                      || !File.Exists(source);
-
-        if (deleted)
-        {
-            if (File.Exists(dest))
-                File.Delete(dest);
-            return;
-        }
-
-        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-        if (!string.IsNullOrWhiteSpace(file.OldPath))
-        {
-            var oldDest = CombineUnderRoot(WorkingDirectory, file.OldPath);
-            if (File.Exists(oldDest) && !string.Equals(oldDest, dest, StringComparison.OrdinalIgnoreCase))
-                File.Delete(oldDest);
-        }
-
-        var inHead = await ExistsInHeadAsync(other, relative, cancellationToken);
-        if (!File.Exists(dest) || !inHead)
-        {
-            File.Copy(source, dest, overwrite: true);
-            return;
-        }
-
-        if (await FileHasConflictMarkersAsync(dest, cancellationToken)
-            || await IsUnmergedPathAsync(relative, cancellationToken))
-        {
-            File.Copy(source, dest, overwrite: true);
-            await _git.RunAsync(["add", "--", relative], throwOnError: false, cancellationToken: cancellationToken);
-            return;
-        }
-
-        var baseTemp = Path.GetTempFileName();
-        var oursTemp = Path.GetTempFileName();
-        try
-        {
-            File.Copy(dest, oursTemp, overwrite: true);
-            var baseText = await ReadBlobAtAsync(mergeBase, relative, cancellationToken);
-            await File.WriteAllTextAsync(baseTemp, baseText, cancellationToken);
-            await _git.RunAsync(
-                ["merge-file", "--theirs", "-L", "current", "-L", "base", "-L", "other", dest, baseTemp, source],
-                throwOnError: false,
-                cancellationToken: cancellationToken);
-            if (await FileHasConflictMarkersAsync(dest, cancellationToken))
-                await RecordUnmergedIndexAsync(relative, baseTemp, oursTemp, source, cancellationToken);
-        }
-        catch
-        {
-            File.Copy(source, dest, overwrite: true);
-        }
-        finally
-        {
-            try { File.Delete(baseTemp); } catch { /* temp cleanup */ }
-            try { File.Delete(oursTemp); } catch { /* temp cleanup */ }
-        }
-    }
-
-    private async Task<string?> ResolveMergeBaseAsync(string other, CancellationToken cancellationToken)
-    {
         var otherHead = (await _git.RunAsync(
             ["rev-parse", "HEAD"],
             throwOnError: false,
             cancellationToken: cancellationToken,
             workingDirectory: other)).Trim();
         if (string.IsNullOrWhiteSpace(otherHead))
-            return null;
+            otherHead = null;
 
-        var mergeBase = (await _git.RunAsync(
-            ["merge-base", "HEAD", otherHead],
-            throwOnError: false,
-            cancellationToken: cancellationToken)).Trim();
-        return string.IsNullOrWhiteSpace(mergeBase) ? null : mergeBase;
+        foreach (var file in files)
+        {
+            if (file.IndexStatus == FileChangeKind.Untracked)
+                continue;
+            await ImportTrackedFileAsync(other, file, otherHead, cancellationToken);
+        }
+    }
+
+    private async Task ImportTrackedFileAsync(
+        string other,
+        FileChange file,
+        string? otherHead,
+        CancellationToken cancellationToken)
+    {
+        var relative = file.Path.Replace('\\', '/');
+        var source = CombineUnderRoot(other, relative);
+        var deleted = file.IndexStatus == FileChangeKind.Deleted
+                      || file.WorkTreeStatus == FileChangeKind.Deleted
+                      || !File.Exists(source);
+        var basePath = string.IsNullOrWhiteSpace(file.OldPath) ? relative : file.OldPath.Replace('\\', '/');
+        var baseText = await ReadBlobAtAsync(otherHead, basePath, cancellationToken);
+        await MergeIncomingOntoCurrentAsync(
+            relative,
+            deleted ? null : source,
+            file.OldPath,
+            baseText,
+            deleted,
+            cancellationToken);
+    }
+
+    private async Task ApplyStashTrackedFileAsync(string selector, FileChange file, CancellationToken cancellationToken)
+    {
+        var relative = file.Path.Replace('\\', '/');
+        var basePath = string.IsNullOrWhiteSpace(file.OldPath) ? relative : file.OldPath.Replace('\\', '/');
+        var deleted = file.IndexStatus == FileChangeKind.Deleted;
+        var baseText = await ReadBlobAtAsync($"{selector}^1", basePath, cancellationToken);
+        string? incomingTemp = null;
+        try
+        {
+            if (!deleted)
+            {
+                incomingTemp = Path.GetTempFileName();
+                await File.WriteAllTextAsync(
+                    incomingTemp,
+                    await ReadBlobAtAsync(selector, relative, cancellationToken),
+                    cancellationToken);
+            }
+
+            await MergeIncomingOntoCurrentAsync(
+                relative,
+                incomingTemp,
+                file.OldPath,
+                baseText,
+                deleted,
+                cancellationToken);
+        }
+        finally
+        {
+            if (incomingTemp is not null)
+            {
+                try { File.Delete(incomingTemp); } catch { /* temp cleanup */ }
+            }
+        }
+    }
+
+    private async Task ApplyStashUntrackedFileAsync(string selector, string path, CancellationToken cancellationToken)
+    {
+        var relative = path.Replace('\\', '/');
+        var incomingTemp = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(
+                incomingTemp,
+                await ReadBlobAtAsync($"{selector}^3", relative, cancellationToken),
+                cancellationToken);
+            await MergeIncomingOntoCurrentAsync(relative, incomingTemp, null, "", incomingDeleted: false, cancellationToken);
+        }
+        finally
+        {
+            try { File.Delete(incomingTemp); } catch { /* temp cleanup */ }
+        }
+    }
+
+    private async Task MergeIncomingOntoCurrentAsync(
+        string relative,
+        string? incomingPath,
+        string? oldPath,
+        string baseText,
+        bool incomingDeleted,
+        CancellationToken cancellationToken)
+    {
+        var dest = CombineUnderRoot(WorkingDirectory, relative);
+        if (!string.IsNullOrWhiteSpace(oldPath))
+        {
+            var oldDest = CombineUnderRoot(WorkingDirectory, oldPath);
+            if (File.Exists(oldDest) && !string.Equals(oldDest, dest, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!File.Exists(dest))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                    File.Move(oldDest, dest);
+                }
+                else
+                {
+                    File.Delete(oldDest);
+                }
+            }
+        }
+
+        if (incomingDeleted)
+        {
+            if (!File.Exists(dest))
+                return;
+            var current = NormalizeNewlines(await File.ReadAllTextAsync(dest, cancellationToken));
+            if (current == NormalizeNewlines(baseText))
+                File.Delete(dest);
+            return;
+        }
+
+        if (incomingPath is null || !File.Exists(incomingPath))
+            return;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+        if (!File.Exists(dest))
+        {
+            File.Copy(incomingPath, dest, overwrite: true);
+            return;
+        }
+
+        if (await FileHasConflictMarkersAsync(dest, cancellationToken))
+            return;
+
+        var destText = NormalizeNewlines(await File.ReadAllTextAsync(dest, cancellationToken));
+        var incomingText = NormalizeNewlines(await File.ReadAllTextAsync(incomingPath, cancellationToken));
+        if (destText == incomingText)
+            return;
+
+        var merged = ChangedLineMerger.Apply(destText, NormalizeNewlines(baseText), incomingText);
+        await File.WriteAllTextAsync(dest, merged.Text, cancellationToken);
+        if (!merged.HasConflict)
+            return;
+
+        var baseTemp = Path.GetTempFileName();
+        var oursTemp = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(baseTemp, baseText, cancellationToken);
+            await File.WriteAllTextAsync(oursTemp, destText, cancellationToken);
+            await RecordUnmergedIndexAsync(relative, baseTemp, oursTemp, incomingPath, cancellationToken);
+        }
+        finally
+        {
+            try { File.Delete(baseTemp); } catch { /* temp cleanup */ }
+            try { File.Delete(oursTemp); } catch { /* temp cleanup */ }
+        }
     }
 
     private async Task<string> ReadBlobAtAsync(string? sha, string relative, CancellationToken cancellationToken)
@@ -603,22 +663,7 @@ public sealed class GitCliRepository : IGitRepository
         return text.Contains("<<<"+"<"+"<<<") && text.Contains(">>>"+">"+">>>");
     }
 
-    private async Task<bool> ExistsInHeadAsync(string other, string relative, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _git.RunAsync(
-                ["cat-file", "-e", $"HEAD:{relative}"],
-                throwOnError: true,
-                cancellationToken: cancellationToken,
-                workingDirectory: other);
-            return true;
-        }
-        catch (GitException)
-        {
-            return false;
-        }
-    }
+    private static string NormalizeNewlines(string text) => text.Replace("\r\n", "\n");
 
     private static string CombineUnderRoot(string root, string relative)
     {
@@ -657,12 +702,10 @@ public sealed class GitCliRepository : IGitRepository
         foreach (var relative in toCopy)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var source = Path.GetFullPath(Path.Combine(other, relative));
-            var dest = Path.GetFullPath(Path.Combine(WorkingDirectory, relative));
-            if (!dest.StartsWith(WorkingDirectory, StringComparison.OrdinalIgnoreCase) || !File.Exists(source))
+            var source = CombineUnderRoot(other, relative);
+            if (!File.Exists(source))
                 continue;
-            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-            File.Copy(source, dest, overwrite: true);
+            await MergeIncomingOntoCurrentAsync(relative, source, null, "", incomingDeleted: false, cancellationToken);
         }
     }
 

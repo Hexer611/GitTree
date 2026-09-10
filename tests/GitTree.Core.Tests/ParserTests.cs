@@ -453,3 +453,42 @@ public class CheckoutTargetsTests
         IsCurrent = isCurrent
     };
 }
+
+public class ChangedLineMergerTests
+{
+    [Fact]
+    public void AppliesOnlyIncomingLineEdits()
+    {
+        var result = ChangedLineMerger.Apply(
+            "AAA\nBBB\nCCC\nDDD\nEEE\nFFF\nLOCAL\n",
+            "AAA\nBBB\nCCC\nDDD\nEEE\nFFF\nGGG\n",
+            "AAA\nSTASHED\nCCC\nDDD\nEEE\nFFF\nGGG\n");
+
+        Assert.False(result.HasConflict);
+        Assert.Equal("AAA\nSTASHED\nCCC\nDDD\nEEE\nFFF\nLOCAL\n", result.Text);
+    }
+
+    [Fact]
+    public void KeepsCurrentLineWhenIncomingOnlyAddsNearby()
+    {
+        var result = ChangedLineMerger.Apply(
+            "from main\n",
+            "from other\n",
+            "from other\nextra heading\n");
+
+        Assert.False(result.HasConflict);
+        Assert.Equal("from main\nextra heading\n", result.Text);
+    }
+
+    [Fact]
+    public void SameLineTakesIncomingAndKeepsCurrentOnlyLines()
+    {
+        var result = ChangedLineMerger.Apply(
+            "shared\nours\nshared\nLOCAL\n",
+            "shared\nconflict\nshared\n",
+            "shared\ntheirs\nshared\n");
+
+        Assert.False(result.HasConflict);
+        Assert.Equal("shared\ntheirs\nshared\nLOCAL\n", result.Text);
+    }
+}
