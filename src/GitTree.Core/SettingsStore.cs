@@ -20,6 +20,7 @@ public sealed class AppSettings
     public bool SidebarTagsExpanded { get; set; }
     public bool SidebarStashesExpanded { get; set; }
     public bool SidebarWorktreesExpanded { get; set; } = true;
+    public string LastCloneParent { get; set; } = "";
 }
 
 public sealed class SettingsStore

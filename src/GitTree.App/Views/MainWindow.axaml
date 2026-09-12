@@ -30,6 +30,8 @@
                     <TextBlock Classes="brand" Text="GitTree" VerticalAlignment="Center" />
                     <Border Width="1" Height="22" Background="{DynamicResource LineBrush}" Margin="6,0" />
                     <Button Classes="accent" Content="Open repository" Command="{Binding OpenRepositoryCommand}" />
+                    <Button Classes="ghost" Content="Clone" Command="{Binding CloneRepositoryCommand}"
+                            ToolTip.Tip="Clone a remote Git URL into a local folder" />
                     <ComboBox Width="280" ItemsSource="{Binding RecentRepositories}"
                               SelectedItem="{Binding SelectedRecent}"
                               PlaceholderText="Jump to a project">
@@ -674,8 +676,12 @@
             <Grid RowDefinitions="Auto,*" IsVisible="{Binding !HasRepo}" Margin="28,20,28,16"
                   Background="{DynamicResource Bg0Brush}">
                 <DockPanel Margin="0,0,0,18">
-                    <Button Classes="accent" Content="Open a Git repository" Command="{Binding OpenRepositoryCommand}"
-                            DockPanel.Dock="Right" Padding="18,10" VerticalAlignment="Center" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Classes="ghost" Content="Clone a remote URL" Command="{Binding CloneRepositoryCommand}"
+                                Padding="18,10" />
+                        <Button Classes="accent" Content="Open a Git repository" Command="{Binding OpenRepositoryCommand}"
+                                Padding="18,10" />
+                    </StackPanel>
                     <StackPanel Spacing="6" VerticalAlignment="Center">
                         <TextBlock Text="Latest repositories" FontSize="26" FontWeight="Bold" />
                         <TextBlock Text="Pick a project to open it. Branch, last commit, and working-tree status sit next to each name."

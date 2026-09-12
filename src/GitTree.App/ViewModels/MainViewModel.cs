@@ -365,6 +365,50 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task CloneRepositoryAsync()
+    {
+        if (Host is null)
+            return;
+
+        var settings = _settings.Load();
+        var lastParent = settings.LastCloneParent;
+        if (string.IsNullOrWhiteSpace(lastParent) && RecentRepositories.Count > 0)
+            lastParent = GitClonePaths.ParentOf(RecentRepositories[0].Path);
+
+        var vm = new CloneRepositoryViewModel(lastParent)
+        {
+            Host = Host
+        };
+        var window = new CloneRepositoryWindow
+        {
+            DataContext = vm
+        };
+        await window.ShowDialog(Host);
+        if (!vm.Confirmed)
+            return;
+
+        try
+        {
+            IsBusy = true;
+            ErrorMessage = "";
+            StatusMessage = "Cloning repository…";
+            await GitCloner.CloneAsync(vm.Url.Trim(), vm.Destination.Trim());
+            _settings.Update(s => s.LastCloneParent = GitClonePaths.ParentOf(vm.Destination));
+            await OpenRepositoryAsync(vm.Destination.Trim());
+            StatusMessage = "Cloned and opened the repository.";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+            StatusMessage = "Clone failed.";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
     private async Task OpenSettingsAsync()
     {
         if (Host is null)

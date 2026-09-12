@@ -818,6 +818,32 @@ public class GitCliRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task CloneCopiesRemoteIntoDestination()
+    {
+        var source = CreateTempRepo();
+        var destRoot = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N"));
+        var dest = Path.Combine(destRoot, "copy");
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(source, "note.txt"), "cloned\n");
+            using (var repo = new GitCliRepository(source))
+            {
+                await repo.StageAsync(["note.txt"]);
+                await repo.CommitAsync("seed");
+            }
+
+            await GitCloner.CloneAsync(source, dest);
+            Assert.True(File.Exists(Path.Combine(dest, "note.txt")));
+            Assert.Equal("cloned", (await File.ReadAllTextAsync(Path.Combine(dest, "note.txt"))).Trim());
+        }
+        finally
+        {
+            TryDelete(source);
+            TryDelete(destRoot);
+        }
+    }
+
     private static string CreateTempRepo()
     {
         var root = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N"));
