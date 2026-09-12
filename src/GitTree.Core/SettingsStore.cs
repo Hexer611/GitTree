@@ -74,6 +74,21 @@ public sealed class SettingsStore
         });
     }
 
+    public void ForgetRepository(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        Update(settings =>
+        {
+            settings.RecentRepositories = settings.RecentRepositories
+                .Where(existing =>
+                    !GitRepositoryLocator.PathsEqual(existing, path)
+                    && !GitRepositoryLocator.IsSameProject(existing, path))
+                .ToList();
+        });
+    }
+
     public List<string> LoadRecentProjects()
     {
         var settings = Load();

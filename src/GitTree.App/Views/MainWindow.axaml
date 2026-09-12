@@ -32,6 +32,9 @@
                     <Button Classes="accent" Content="Open repository" Command="{Binding OpenRepositoryCommand}" />
                     <Button Classes="ghost" Content="Clone" Command="{Binding CloneRepositoryCommand}"
                             ToolTip.Tip="Clone a remote Git URL into a local folder" />
+                    <Button Classes="ghost" Content="Remove from list" Command="{Binding RemoveCurrentRepositoryCommand}"
+                            IsVisible="{Binding HasRepo}"
+                            ToolTip.Tip="Remove this repository from GitTree. The folder stays on disk." />
                     <ComboBox Width="280" ItemsSource="{Binding RecentRepositories}"
                               SelectedItem="{Binding SelectedRecent}"
                               PlaceholderText="Jump to a project">
@@ -120,7 +123,7 @@
         </Border>
 
         <Grid Grid.Row="1">
-            <Grid x:Name="WorkspaceGrid" ColumnDefinitions="268,8,*" Margin="12" IsVisible="{Binding HasRepo}">
+            <Grid x:Name="WorkspaceGrid" ColumnDefinitions="268,8,*" Margin="12" IsVisible="{Binding ShowWorkspace}">
                 <Border Classes="pane">
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                   VerticalScrollBarVisibility="Auto">
@@ -673,7 +676,26 @@
                 </Grid>
             </Grid>
 
-            <Grid RowDefinitions="Auto,*" IsVisible="{Binding !HasRepo}" Margin="28,20,28,16"
+            <Grid IsVisible="{Binding IsMissingRepo}" Margin="28,20,28,16"
+                  Background="{DynamicResource Bg0Brush}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="14" MaxWidth="520">
+                    <TextBlock Text="This repository is gone" FontSize="26" FontWeight="Bold"
+                               HorizontalAlignment="Center" TextAlignment="Center" />
+                    <TextBlock Text="{Binding MissingRepoName}" FontSize="16" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" TextAlignment="Center"
+                               Foreground="{DynamicResource AccentBrush}" />
+                    <TextBlock Text="{Binding MissingRepoPath}" FontSize="13"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{DynamicResource MutedBrush}" />
+                    <TextBlock Text="The folder was deleted or moved, so the commit graph, diff, and branches are hidden."
+                               FontSize="14" TextWrapping="Wrap" TextAlignment="Center"
+                               Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" />
+                    <Button Classes="accent" Content="Return to home" Command="{Binding ReturnToHomeCommand}"
+                            HorizontalAlignment="Center" Padding="18,10" Margin="0,8,0,0" />
+                </StackPanel>
+            </Grid>
+
+            <Grid RowDefinitions="Auto,*" IsVisible="{Binding ShowHome}" Margin="28,20,28,16"
                   Background="{DynamicResource Bg0Brush}">
                 <DockPanel Margin="0,0,0,18">
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -684,7 +706,7 @@
                     </StackPanel>
                     <StackPanel Spacing="6" VerticalAlignment="Center">
                         <TextBlock Text="Latest repositories" FontSize="26" FontWeight="Bold" />
-                        <TextBlock Text="Pick a project to open it. Branch, last commit, and working-tree status sit next to each name."
+                        <TextBlock Text="Pick a project to open it. Remove drops it from this list only — the folder stays on disk."
                                    TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" FontSize="14" />
                     </StackPanel>
                 </DockPanel>
@@ -699,35 +721,43 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:RecentRepoItem">
-                                    <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                            Padding="0" Command="{Binding DataContext.OpenRecentCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            CommandParameter="{Binding}">
-                                        <Border Background="{DynamicResource Bg2Brush}" CornerRadius="10" Padding="14,12"
-                                                BorderBrush="{DynamicResource LineBrush}" BorderThickness="1">
-                                            <Grid ColumnDefinitions="220,*,160,110" ColumnSpacing="16">
-                                                <StackPanel Spacing="2">
-                                                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Text="{Binding ParentFolder}" FontSize="11.5" Foreground="{DynamicResource MutedBrush}"
-                                                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" Spacing="2">
-                                                    <TextBlock Text="{Binding LastCommit}" FontSize="13"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               ToolTip.Tip="{Binding LastCommit}" />
-                                                    <TextBlock Text="{Binding LastCommitWhen}" FontSize="11.5" Foreground="{DynamicResource MutedBrush}" />
-                                                </StackPanel>
-                                                <Border Grid.Column="2" Background="{DynamicResource AccentSubtleBrush}" CornerRadius="999" Padding="10,4"
-                                                        HorizontalAlignment="Left" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Branch}" FontSize="12" Foreground="{DynamicResource AccentBrush}"
-                                                               FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                </Border>
-                                                <TextBlock Grid.Column="3" Text="{Binding StatusLabel}" FontSize="12.5"
-                                                           VerticalAlignment="Center" HorizontalAlignment="Right"
-                                                           Foreground="{DynamicResource WarningBrush}" />
-                                            </Grid>
-                                        </Border>
-                                    </Button>
+                                    <Border Background="{DynamicResource Bg2Brush}" CornerRadius="10" Padding="14,12"
+                                            BorderBrush="{DynamicResource LineBrush}" BorderThickness="1">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                            <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                    Padding="0" Background="Transparent" BorderThickness="0"
+                                                    Command="{Binding DataContext.OpenRecentCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <Grid ColumnDefinitions="220,*,160,110" ColumnSpacing="16">
+                                                    <StackPanel Spacing="2">
+                                                        <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding ParentFolder}" FontSize="11.5" Foreground="{DynamicResource MutedBrush}"
+                                                                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Spacing="2">
+                                                        <TextBlock Text="{Binding LastCommit}" FontSize="13"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip.Tip="{Binding LastCommit}" />
+                                                        <TextBlock Text="{Binding LastCommitWhen}" FontSize="11.5" Foreground="{DynamicResource MutedBrush}" />
+                                                    </StackPanel>
+                                                    <Border Grid.Column="2" Background="{DynamicResource AccentSubtleBrush}" CornerRadius="999" Padding="10,4"
+                                                            HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Branch}" FontSize="12" Foreground="{DynamicResource AccentBrush}"
+                                                                   FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    </Border>
+                                                    <TextBlock Grid.Column="3" Text="{Binding StatusLabel}" FontSize="12.5"
+                                                               VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                               Foreground="{DynamicResource WarningBrush}" />
+                                                </Grid>
+                                            </Button>
+                                            <Button Grid.Column="1" Classes="danger tiny" Content="Remove"
+                                                    VerticalAlignment="Center"
+                                                    Command="{Binding DataContext.RemoveRecentCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip.Tip="Remove from GitTree. The folder stays on disk." />
+                                        </Grid>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

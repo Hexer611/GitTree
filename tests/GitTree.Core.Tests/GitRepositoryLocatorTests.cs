@@ -137,6 +137,32 @@ public class GitRepositoryLocatorTests
     }
 
     [Fact]
+    public void ForgetRepository_RemovesReferenceOnly()
+    {
+        var settingsFile = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + ".json");
+        var repo = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N"), "kept-on-disk");
+        Directory.CreateDirectory(repo);
+        File.WriteAllText(Path.Combine(repo, "readme.txt"), "stay");
+        try
+        {
+            var store = new SettingsStore(settingsFile);
+            store.RememberRepository(repo);
+            Assert.Contains(store.Load().RecentRepositories, p => GitRepositoryLocator.PathsEqual(p, repo));
+
+            store.ForgetRepository(repo);
+
+            Assert.DoesNotContain(store.Load().RecentRepositories, p => GitRepositoryLocator.PathsEqual(p, repo));
+            Assert.True(Directory.Exists(repo));
+            Assert.True(File.Exists(Path.Combine(repo, "readme.txt")));
+        }
+        finally
+        {
+            try { File.Delete(settingsFile); } catch { /* ignore */ }
+            TryDelete(Path.GetDirectoryName(repo)!);
+        }
+    }
+
+    [Fact]
     public void RememberRepository_DoesNotStoreCursorWorktree()
     {
         var settingsFile = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + ".json");

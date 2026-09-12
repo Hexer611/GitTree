@@ -38,6 +38,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _errorMessage = "";
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _hasRepo;
+    [ObservableProperty] private bool _isMissingRepo;
+    [ObservableProperty] private string _missingRepoName = "";
+    [ObservableProperty] private string _missingRepoPath = "";
     [ObservableProperty] private bool _isMerging;
     [ObservableProperty] private bool _isRebasing;
     [ObservableProperty] private string _commitMessage = "";
@@ -114,6 +117,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private WorktreeInfo? _selectedWorktree;
     [ObservableProperty] private RecentRepoItem? _selectedRecent;
 
+    public bool ShowWorkspace => HasRepo && !IsMissingRepo;
+    public bool ShowHome => !HasRepo && !IsMissingRepo;
+
     public bool HasConflictOperation => IsMerging || IsRebasing || ConflictCount > 0;
     public bool HasDiffLineStats => RemovedLineCount > 0 || AddedLineCount > 0;
     public bool HasRemovedLineStats => RemovedLineCount > 0;
@@ -148,6 +154,18 @@ public partial class MainViewModel : ViewModelBase
     }
 
     partial void OnErrorMessageChanged(string value) => HasError = !string.IsNullOrWhiteSpace(value);
+
+    partial void OnHasRepoChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowWorkspace));
+        OnPropertyChanged(nameof(ShowHome));
+    }
+
+    partial void OnIsMissingRepoChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowWorkspace));
+        OnPropertyChanged(nameof(ShowHome));
+    }
 
     partial void OnLocalSectionExpandedChanged(bool value) => PersistSidebarLayout();
     partial void OnRemotesSectionExpandedChanged(bool value) => PersistSidebarLayout();
@@ -227,7 +245,7 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedRecentChanged(RecentRepoItem? value)
     {
-        if (_suppressRecentSelect || value is null || !Directory.Exists(value.Path))
+        if (_suppressRecentSelect || value is null)
             return;
         if (HasRepo && GitRepositoryLocator.IsSameProject(RepoPath, value.Path))
             return;
@@ -365,6 +383,109 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void RemoveRecent(RecentRepoItem? item)
+    {
+        if (item is null || string.IsNullOrWhiteSpace(item.Path))
+            return;
+
+        var path = item.Path;
+        _settings.ForgetRepository(path);
+
+        _suppressRecentSelect = true;
+        try
+        {
+            for (var i = RecentRepositories.Count - 1; i >= 0; i--)
+            {
+                var recent = RecentRepositories[i];
+                if (GitRepositoryLocator.PathsEqual(recent.Path, path)
+                    || GitRepositoryLocator.IsSameProject(recent.Path, path))
+                    RecentRepositories.RemoveAt(i);
+            }
+
+            HasRecents = RecentRepositories.Count > 0;
+            if (SelectedRecent is not null
+                && (GitRepositoryLocator.PathsEqual(SelectedRecent.Path, path)
+                    || GitRepositoryLocator.IsSameProject(SelectedRecent.Path, path)))
+                SelectedRecent = RecentRepositories.FirstOrDefault();
+        }
+        finally
+        {
+            _suppressRecentSelect = false;
+        }
+
+        if (HasRepo && GitRepositoryLocator.IsSameProject(RepoPath, path))
+            CloseWorkspace();
+        if (IsMissingRepo && GitRepositoryLocator.PathsEqual(MissingRepoPath, path))
+            ReturnToHome();
+
+        StatusMessage = $"Removed {item.Name} from GitTree. The folder was not deleted.";
+    }
+
+    [RelayCommand]
+    private void RemoveCurrentRepository()
+    {
+        if (!HasRepo)
+            return;
+
+        var current = RecentRepositories.FirstOrDefault(r =>
+            GitRepositoryLocator.PathsEqual(r.Path, RepoPath)
+            || GitRepositoryLocator.IsSameProject(r.Path, RepoPath));
+        RemoveRecent(current ?? new RecentRepoItem
+        {
+            Path = RepoPath,
+            Name = GitRepositoryLocator.FolderName(RepoPath)
+        });
+    }
+
+    private void CloseWorkspace()
+    {
+        _watcher?.Dispose();
+        _watcher = null;
+        _repo?.Dispose();
+        _repo = null;
+        HasRepo = false;
+        RepoPath = "No repository open";
+        WindowTitle = "GitTree";
+        CurrentBranch = "";
+        NeedsRefresh = false;
+        ErrorMessage = "";
+    }
+
+    [RelayCommand]
+    private void ReturnToHome()
+    {
+        IsMissingRepo = false;
+        MissingRepoName = "";
+        MissingRepoPath = "";
+        _suppressRecentSelect = true;
+        try
+        {
+            SelectedRecent = null;
+        }
+        finally
+        {
+            _suppressRecentSelect = false;
+        }
+
+        StatusMessage = "Open a Git repository to get started.";
+        ErrorMessage = "";
+        WindowTitle = "GitTree";
+        RepoPath = "No repository open";
+    }
+
+    private void ShowMissingRepository(string path)
+    {
+        CloseWorkspace();
+        IsMissingRepo = true;
+        MissingRepoPath = path;
+        MissingRepoName = GitRepositoryLocator.FolderName(path);
+        WindowTitle = $"GitTree — {MissingRepoName}";
+        RepoPath = path;
+        StatusMessage = "That repository folder is gone.";
+        ErrorMessage = "This Git repository was deleted or moved.";
+    }
+
+    [RelayCommand]
     private async Task CloneRepositoryAsync()
     {
         if (Host is null)
@@ -425,12 +546,16 @@ public partial class MainViewModel : ViewModelBase
 
     public async Task OpenRepositoryAsync(string path, bool bumpRecent)
     {
-        var root = GitRepositoryLocator.FindRoot(path);
-        if (root is null)
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path) || GitRepositoryLocator.FindRoot(path) is null)
         {
-            ErrorMessage = "That folder is not a Git repository.";
+            ShowMissingRepository(path);
             return;
         }
+
+        var root = GitRepositoryLocator.FindRoot(path)!;
+        IsMissingRepo = false;
+        MissingRepoName = "";
+        MissingRepoPath = "";
 
         _watcher?.Dispose();
         _repo?.Dispose();
