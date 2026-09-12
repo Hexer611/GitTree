@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -932,6 +933,16 @@ public partial class MainViewModel : ViewModelBase
         if (SelectedTag is null)
             return Task.CompletedTask;
         return MutateAsync(r => r.CheckoutAsync(SelectedTag.Name));
+    }
+
+    [RelayCommand]
+    private async Task CopyCommitShaAsync()
+    {
+        if (SelectedCommit is null || Host?.Clipboard is null)
+            return;
+
+        await Host.Clipboard.SetTextAsync(SelectedCommit.Sha);
+        StatusMessage = $"Copied {SelectedCommit.Sha}.";
     }
 
     [RelayCommand]

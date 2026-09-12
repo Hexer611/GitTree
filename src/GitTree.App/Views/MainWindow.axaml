@@ -341,6 +341,9 @@
                                         <MenuItem Header="Reset current branch to this commit..."
                                                   Command="{Binding ResetToCommitCommand}"
                                                   IsEnabled="{Binding !IsDetached}" />
+                                        <Separator />
+                                        <MenuItem Header="Copy SHA to clipboard"
+                                                  Command="{Binding CopyCommitShaCommand}" />
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
                                 <ListBox.ItemTemplate>
