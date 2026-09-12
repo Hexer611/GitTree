@@ -24,7 +24,7 @@
                 <TextBlock Classes="section" Text="WINDOW" Margin="0" />
                 <CheckBox Content="Remember window position, size, and pane layout"
                           IsChecked="{Binding RememberWindowPosition}" />
-                <TextBlock Text="When enabled, GitTree restores the last screen position, window size, and the relative sizes of the sidebar, graph, and diff panes."
+                <TextBlock Text="When enabled, GitTree restores the last screen position, window size, and the relative sizes of the sidebar, graph, and diff panes. Open or closed sidebar sections are always remembered."
                            Foreground="{DynamicResource MutedBrush}" FontSize="12.5" TextWrapping="Wrap" />
             </StackPanel>
         </Border>

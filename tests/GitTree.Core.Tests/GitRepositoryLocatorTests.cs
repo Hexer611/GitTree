@@ -227,6 +227,36 @@ public class GitRepositoryLocatorTests
         }
     }
 
+    [Fact]
+    public void SettingsStore_RoundTripsSidebarSectionLayout()
+    {
+        var settingsFile = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + ".json");
+        Directory.CreateDirectory(Path.GetDirectoryName(settingsFile)!);
+        try
+        {
+            var store = new SettingsStore(settingsFile);
+            store.Save(new AppSettings
+            {
+                SidebarLocalExpanded = false,
+                SidebarRemotesExpanded = false,
+                SidebarTagsExpanded = true,
+                SidebarStashesExpanded = true,
+                SidebarWorktreesExpanded = false
+            });
+
+            var loaded = store.Load();
+            Assert.False(loaded.SidebarLocalExpanded);
+            Assert.False(loaded.SidebarRemotesExpanded);
+            Assert.True(loaded.SidebarTagsExpanded);
+            Assert.True(loaded.SidebarStashesExpanded);
+            Assert.False(loaded.SidebarWorktreesExpanded);
+        }
+        finally
+        {
+            try { File.Delete(settingsFile); } catch { /* ignore */ }
+        }
+    }
+
     private static string CreateTempRepo()
     {
         var root = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N"));

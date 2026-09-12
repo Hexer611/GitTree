@@ -24,7 +24,7 @@ public sealed class GitCliRepository : IGitRepository
         var branchesTask = _git.RunAsync(["for-each-ref", "--format=%(refname)%1f%(objectname)%1f%(upstream:short)%1f%(HEAD)%1f%(upstream:track)", "refs/heads", "refs/remotes"], throwOnError: false, cancellationToken: cancellationToken);
         var tagsTask = _git.RunAsync(["for-each-ref", "--format=%(refname:short)%1f%(objectname)", "refs/tags"], throwOnError: false, cancellationToken: cancellationToken);
         var remotesTask = _git.RunAsync(["remote", "-v"], throwOnError: false, cancellationToken: cancellationToken);
-        var stashTask = _git.RunAsync(["stash", "list", "--format=%gd%1f%H%1f%s"], throwOnError: false, cancellationToken: cancellationToken);
+        var stashTask = _git.RunAsync(["stash", "list", "--format=%gd%x1f%H%x1f%s"], throwOnError: false, cancellationToken: cancellationToken);
         var worktreesTask = _git.RunAsync(["worktree", "list", "--porcelain"], throwOnError: false, cancellationToken: cancellationToken);
         var gitDir = GitDir.Resolve(WorkingDirectory);
         var mergeHead = File.Exists(Path.Combine(gitDir, "MERGE_HEAD"));
@@ -77,7 +77,7 @@ public sealed class GitCliRepository : IGitRepository
             Branches = branches,
             Tags = ParseTags(tagsTask.Result),
             Remotes = ParseRemotes(remotesTask.Result),
-            Stashes = ParseStashes(stashTask.Result),
+            Stashes = StashListParser.Parse(stashTask.Result),
             Worktrees = WorktreeListParser.Parse(worktreesTask.Result, WorkingDirectory),
             Sync = SyncStatusParser.ParsePorcelain(statusText)
         };
@@ -966,21 +966,5 @@ public sealed class GitCliRepository : IGitRepository
         return map.Values.ToList();
     }
 
-    private static IReadOnlyList<StashEntry> ParseStashes(string output)
-    {
-        var list = new List<StashEntry>();
-        var index = 0;
-        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var parts = line.Split('\u001f');
-            var selector = parts.Length > 0 ? parts[0] : $"stash@{{{index}}}";
-            var sha = parts.Length > 1 ? parts[1] : "";
-            var message = parts.Length > 2 ? parts[2] : line;
-            list.Add(new StashEntry { Index = index, Selector = selector, Sha = sha, Message = message });
-            index++;
-        }
-
-        return list;
-    }
 }
 

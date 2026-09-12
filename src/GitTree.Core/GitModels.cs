@@ -31,6 +31,8 @@ public sealed class StashEntry
     public required string Selector { get; init; }
     public required string Message { get; init; }
     public required string Sha { get; init; }
+
+    public string DisplayLabel => StashListParser.FormatLabel(Message, Selector);
 }
 
 public sealed class OperationState

@@ -15,6 +15,11 @@ public sealed class AppSettings
     public double SidebarWidth { get; set; }
     public double GraphVsDiffShare { get; set; }
     public double GraphVsFilesShare { get; set; }
+    public bool SidebarLocalExpanded { get; set; } = true;
+    public bool SidebarRemotesExpanded { get; set; } = true;
+    public bool SidebarTagsExpanded { get; set; }
+    public bool SidebarStashesExpanded { get; set; }
+    public bool SidebarWorktreesExpanded { get; set; } = true;
 }
 
 public sealed class SettingsStore

@@ -123,7 +123,7 @@
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                   VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="10,8">
-                            <Expander Classes="sidebar" IsExpanded="True">
+                            <Expander Classes="sidebar" IsExpanded="{Binding LocalSectionExpanded, Mode=TwoWay}">
                                 <Expander.Header>
                                     <DockPanel>
                                         <Border DockPanel.Dock="Right" Classes="count" Background="{DynamicResource AccentSubtleBrush}" Margin="8,0,0,0">
@@ -168,7 +168,7 @@
                                 </TreeView>
                             </Expander>
 
-                            <Expander Classes="sidebar" IsExpanded="True">
+                            <Expander Classes="sidebar" IsExpanded="{Binding RemotesSectionExpanded, Mode=TwoWay}">
                                 <Expander.Header>
                                     <DockPanel>
                                         <Border DockPanel.Dock="Right" Classes="count" Background="{DynamicResource InfoSubtleBrush}" Margin="8,0,0,0">
@@ -198,7 +198,7 @@
                                 </TreeView>
                             </Expander>
 
-                            <Expander Classes="sidebar" IsExpanded="False">
+                            <Expander Classes="sidebar" IsExpanded="{Binding TagsSectionExpanded, Mode=TwoWay}">
                                 <Expander.Header>
                                     <DockPanel>
                                         <Border DockPanel.Dock="Right" Classes="count" Background="{DynamicResource WarningSubtleBrush}" Margin="8,0,0,0">
@@ -228,7 +228,7 @@
                                 </TreeView>
                             </Expander>
 
-                            <Expander Classes="sidebar" IsExpanded="False">
+                            <Expander Classes="sidebar" IsExpanded="{Binding StashesSectionExpanded, Mode=TwoWay}">
                                 <Expander.Header>
                                     <DockPanel>
                                         <Border DockPanel.Dock="Right" Classes="count" Background="{DynamicResource OverlayBrush}" Margin="8,0,0,0">
@@ -257,7 +257,7 @@
                                 </TreeView>
                             </Expander>
 
-                            <Expander Classes="sidebar" IsExpanded="True">
+                            <Expander Classes="sidebar" IsExpanded="{Binding WorktreesSectionExpanded, Mode=TwoWay}">
                                 <Expander.Header>
                                     <DockPanel>
                                         <Border DockPanel.Dock="Right" Classes="count" Background="{DynamicResource AccentSubtleBrush}" Margin="8,0,0,0">

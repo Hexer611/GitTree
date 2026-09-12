@@ -454,6 +454,37 @@ public class CheckoutTargetsTests
     };
 }
 
+public class StashListParserTests
+{
+    [Fact]
+    public void ParsesPrettyFormatWithUnitSeparators()
+    {
+        var output = "stash@{0}\u001fabc123\u001fOn main: named-wip\nstash@{1}\u001fdef456\u001fWIP on feature: 1a2b3c4 first";
+
+        var stashes = StashListParser.Parse(output);
+
+        Assert.Equal(2, stashes.Count);
+        Assert.Equal("stash@{0}", stashes[0].Selector);
+        Assert.Equal("abc123", stashes[0].Sha);
+        Assert.Equal("On main: named-wip", stashes[0].Message);
+        Assert.Equal("main • named-wip", stashes[0].DisplayLabel);
+        Assert.Equal("feature • 1a2b3c4 first", stashes[1].DisplayLabel);
+    }
+
+    [Fact]
+    public void ParsesLiteralPercent1fFromStashPrettyFormat()
+    {
+        var output = "stash@{0}%1fface97843deadbeef%1fOn develop: hotfix";
+
+        var stash = Assert.Single(StashListParser.Parse(output));
+
+        Assert.Equal("stash@{0}", stash.Selector);
+        Assert.Equal("face97843deadbeef", stash.Sha);
+        Assert.Equal("On develop: hotfix", stash.Message);
+        Assert.Equal("develop • hotfix", stash.DisplayLabel);
+    }
+}
+
 public class ChangedLineMergerTests
 {
     [Fact]

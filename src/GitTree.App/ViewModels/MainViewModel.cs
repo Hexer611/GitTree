@@ -74,6 +74,11 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _upstreamName = "";
     [ObservableProperty] private string _aheadBadge = "";
     [ObservableProperty] private string _behindBadge = "";
+    [ObservableProperty] private bool _localSectionExpanded = true;
+    [ObservableProperty] private bool _remotesSectionExpanded = true;
+    [ObservableProperty] private bool _tagsSectionExpanded;
+    [ObservableProperty] private bool _stashesSectionExpanded;
+    [ObservableProperty] private bool _worktreesSectionExpanded = true;
 
     private string? _pendingStatus;
     private bool _suppressRecentSelect;
@@ -120,6 +125,13 @@ public partial class MainViewModel : ViewModelBase
 
     public MainViewModel()
     {
+        var layout = _settings.Load();
+        _localSectionExpanded = layout.SidebarLocalExpanded;
+        _remotesSectionExpanded = layout.SidebarRemotesExpanded;
+        _tagsSectionExpanded = layout.SidebarTagsExpanded;
+        _stashesSectionExpanded = layout.SidebarStashesExpanded;
+        _worktreesSectionExpanded = layout.SidebarWorktreesExpanded;
+
         var projects = _settings.LoadRecentProjects();
         foreach (var path in projects)
         {
@@ -135,6 +147,24 @@ public partial class MainViewModel : ViewModelBase
     }
 
     partial void OnErrorMessageChanged(string value) => HasError = !string.IsNullOrWhiteSpace(value);
+
+    partial void OnLocalSectionExpandedChanged(bool value) => PersistSidebarLayout();
+    partial void OnRemotesSectionExpandedChanged(bool value) => PersistSidebarLayout();
+    partial void OnTagsSectionExpandedChanged(bool value) => PersistSidebarLayout();
+    partial void OnStashesSectionExpandedChanged(bool value) => PersistSidebarLayout();
+    partial void OnWorktreesSectionExpandedChanged(bool value) => PersistSidebarLayout();
+
+    private void PersistSidebarLayout()
+    {
+        _settings.Update(s =>
+        {
+            s.SidebarLocalExpanded = LocalSectionExpanded;
+            s.SidebarRemotesExpanded = RemotesSectionExpanded;
+            s.SidebarTagsExpanded = TagsSectionExpanded;
+            s.SidebarStashesExpanded = StashesSectionExpanded;
+            s.SidebarWorktreesExpanded = WorktreesSectionExpanded;
+        });
+    }
 
     partial void OnSelectedUnstagedChanged(FileChange? value)
     {
@@ -1197,7 +1227,7 @@ public partial class MainViewModel : ViewModelBase
         if (_repo is null)
             return;
         ShowConflictEditor = false;
-        SetRevisionHeader("CHANGED IN STASH", stash.Selector, stash.Message);
+        SetRevisionHeader("CHANGED IN STASH", stash.DisplayLabel, stash.Message);
         var files = await _repo.GetStashFilesAsync(stash.Index);
         Replace(CommitFiles, files);
         SelectedCommitFile = files.Count > 0 ? files[0] : null;

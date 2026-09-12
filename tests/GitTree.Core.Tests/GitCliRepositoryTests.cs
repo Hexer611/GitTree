@@ -83,6 +83,10 @@ public class GitCliRepositoryTests
             var afterSave = await repo.RefreshAsync();
             var stash = Assert.Single(afterSave.Stashes);
             Assert.Contains("named-wip", stash.Message);
+            Assert.DoesNotContain("%1f", stash.DisplayLabel, StringComparison.Ordinal);
+            Assert.DoesNotContain(stash.Sha, stash.DisplayLabel, StringComparison.Ordinal);
+            Assert.Contains("named-wip", stash.DisplayLabel);
+            Assert.Contains(" • ", stash.DisplayLabel);
             Assert.Contains(afterSave.Changes, c => c.Path == "keep.txt");
             Assert.DoesNotContain(afterSave.Changes, c => c.Path == "take.txt");
             Assert.DoesNotContain(afterSave.Changes, c => c.Path == "new.txt");

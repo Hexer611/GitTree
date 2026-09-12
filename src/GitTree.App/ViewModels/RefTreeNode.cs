@@ -62,7 +62,7 @@ public sealed class RefTreeNode
     {
         var nodes = stashes.Select(s => new RefTreeNode
         {
-            Label = s.Message,
+            Label = s.DisplayLabel,
             Stash = s
         });
         return new ObservableCollection<RefTreeNode>(nodes);
