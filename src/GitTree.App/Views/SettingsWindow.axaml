@@ -4,6 +4,7 @@
         xmlns:theming="using:GitTree.App.Theming"
         x:Class="GitTree.App.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
+        Icon="/Assets/gittree.ico"
         Title="Settings"
         Width="640" Height="560"
         MinWidth="520" MinHeight="420"

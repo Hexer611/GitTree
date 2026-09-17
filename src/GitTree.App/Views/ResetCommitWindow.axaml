@@ -3,6 +3,7 @@
         xmlns:vm="using:GitTree.App.ViewModels"
         x:Class="GitTree.App.Views.ResetCommitWindow"
         x:DataType="vm:ResetCommitViewModel"
+        Icon="/Assets/gittree.ico"
         Title="Reset to Commit..."
         Width="520"
         SizeToContent="Height"

@@ -3,6 +3,7 @@
         xmlns:vm="using:GitTree.App.ViewModels"
         x:Class="GitTree.App.Views.CreatePullRequestWindow"
         x:DataType="vm:CreatePullRequestViewModel"
+        Icon="/Assets/gittree.ico"
         Title="Create Pull Request"
         Width="520"
         SizeToContent="Height"

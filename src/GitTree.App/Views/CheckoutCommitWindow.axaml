@@ -4,6 +4,7 @@
         xmlns:core="using:GitTree.Core"
         x:Class="GitTree.App.Views.CheckoutCommitWindow"
         x:DataType="vm:CheckoutCommitViewModel"
+        Icon="/Assets/gittree.ico"
         Title="Checkout..."
         Width="520"
         SizeToContent="Height"

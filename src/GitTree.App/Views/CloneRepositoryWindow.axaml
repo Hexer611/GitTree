@@ -3,6 +3,7 @@
         xmlns:vm="using:GitTree.App.ViewModels"
         x:Class="GitTree.App.Views.CloneRepositoryWindow"
         x:DataType="vm:CloneRepositoryViewModel"
+        Icon="/Assets/gittree.ico"
         Title="Clone repository"
         Width="560"
         SizeToContent="Height"

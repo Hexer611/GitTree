@@ -3,6 +3,7 @@
         xmlns:vm="using:GitTree.App.ViewModels"
         x:Class="GitTree.App.Views.StashPickWindow"
         x:DataType="vm:StashPickViewModel"
+        Icon="/Assets/gittree.ico"
         Title="{Binding Title}"
         Width="560" Height="520"
         MinWidth="440" MinHeight="360"

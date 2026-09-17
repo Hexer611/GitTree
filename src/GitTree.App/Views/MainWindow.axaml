@@ -9,7 +9,7 @@
         mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="900"
         x:Class="GitTree.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/gittree.ico"
         Title="{Binding WindowTitle}"
         Width="1440" Height="900"
         MinWidth="1040" MinHeight="680">
@@ -22,11 +22,8 @@
         <Border Classes="toolbar" Padding="14,10">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                    <Border Width="28" Height="28" CornerRadius="8"
-                            Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentSoftBrush}" BorderThickness="1">
-                        <TextBlock Text="⌥" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" />
-                    </Border>
+                    <Image Width="32" Height="32" Source="/Assets/gittree.png" Stretch="Uniform"
+                           RenderOptions.BitmapInterpolationMode="HighQuality" />
                     <TextBlock Classes="brand" Text="GitTree" VerticalAlignment="Center" />
                     <Border Width="1" Height="22" Background="{DynamicResource LineBrush}" Margin="6,0" />
                     <Button Classes="accent" Content="Open repository" Command="{Binding OpenRepositoryCommand}" />

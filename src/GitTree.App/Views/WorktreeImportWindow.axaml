@@ -4,6 +4,7 @@
         xmlns:core="using:GitTree.Core"
         x:Class="GitTree.App.Views.WorktreeImportWindow"
         x:DataType="vm:WorktreeImportViewModel"
+        Icon="/Assets/gittree.ico"
         Title="Get changes"
         Width="560" Height="520"
         MinWidth="440" MinHeight="360"
