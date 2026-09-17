@@ -441,6 +441,41 @@ public class GitCliRepositoryTests
     }
 
     [Fact]
+    public async Task DiscardKeepsStagedThenUnstageKeepsWorktree()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "base\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("base");
+
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "staged\n");
+            await repo.StageAsync(["a.txt"]);
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "staged extra\n");
+
+            await repo.DiscardAsync(["a.txt"]);
+            var afterDiscard = await repo.RefreshAsync();
+            var discarded = Assert.Single(afterDiscard.Changes, c => c.Path == "a.txt");
+            Assert.True(discarded.IsStaged);
+            Assert.False(discarded.IsUnstaged);
+            Assert.Equal("staged\n", (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n"));
+
+            await repo.UnstageAsync(["a.txt"]);
+            var afterUnstage = await repo.RefreshAsync();
+            var unstaged = Assert.Single(afterUnstage.Changes, c => c.Path == "a.txt");
+            Assert.False(unstaged.IsStaged);
+            Assert.True(unstaged.IsUnstaged);
+            Assert.Equal("staged\n", (await File.ReadAllTextAsync(Path.Combine(root, "a.txt"))).Replace("\r\n", "\n"));
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
     public async Task StagesAndDiscardsSelectedDiffLines()
     {
         var root = CreateTempRepo();

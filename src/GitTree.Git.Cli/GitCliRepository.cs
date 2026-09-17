@@ -138,7 +138,7 @@ public sealed class GitCliRepository : IGitRepository
         }
 
         if (tracked.Count > 0)
-            await RunPaths(["restore", "--worktree", "--source=HEAD", "--"], tracked, cancellationToken);
+            await RunPaths(["restore", "--worktree", "--"], tracked, cancellationToken);
 
         foreach (var path in untracked)
         {
