@@ -1,0 +1,57 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GitTree.App.ViewModels"
+        x:Class="GitTree.App.Views.CreatePullRequestWindow"
+        x:DataType="vm:CreatePullRequestViewModel"
+        Title="Create Pull Request"
+        Width="520"
+        SizeToContent="Height"
+        MinWidth="440"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <DockPanel Margin="20">
+        <TextBlock DockPanel.Dock="Top"
+                   Text="Open the hosting provider's pull request page with this branch already selected as the source."
+                   FontSize="14" Margin="0,0,0,16" TextWrapping="Wrap" />
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Classes="ghost" Content="Cancel" Command="{Binding CancelCommand}" />
+            <Button Classes="accent" Content="Create Pull Request" Command="{Binding ConfirmCommand}" />
+        </StackPanel>
+
+        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+            <TextBlock Text="Remote:" Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1"
+                      ItemsSource="{Binding Remotes}"
+                      SelectedItem="{Binding SelectedRemote}"
+                      HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PullRequestRemoteChoice">
+                        <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <TextBlock Grid.Row="1" Text="Source:" Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SourceBranch}" FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Row="2" Text="Destination:" Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Row="2" Grid.Column="1"
+                      ItemsSource="{Binding Destinations}"
+                      SelectedItem="{Binding SelectedDestination}"
+                      HorizontalAlignment="Stretch"
+                      IsVisible="{Binding HasDestinations}" />
+            <TextBlock Grid.Row="2" Grid.Column="1"
+                       Text="Default branch on the remote"
+                       Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding !HasDestinations}" />
+        </Grid>
+    </DockPanel>
+</Window>

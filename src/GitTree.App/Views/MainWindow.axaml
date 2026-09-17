@@ -144,6 +144,8 @@
                                     <TreeView.ContextMenu>
                                         <ContextMenu>
                                             <MenuItem Header="Checkout" Command="{Binding CheckoutLocalCommand}" />
+                                            <MenuItem Header="Create Pull Request..." Command="{Binding CreateLocalPullRequestCommand}"
+                                                      ToolTip.Tip="Open the hosting provider's pull request page for this branch" />
                                             <Separator />
                                             <MenuItem Header="Delete branch" Command="{Binding DeleteLocalBranchCommand}" />
                                         </ContextMenu>
@@ -189,6 +191,8 @@
                                     <TreeView.ContextMenu>
                                         <ContextMenu>
                                             <MenuItem Header="Checkout as local" Command="{Binding CheckoutRemoteCommand}" />
+                                            <MenuItem Header="Create Pull Request..." Command="{Binding CreateRemotePullRequestCommand}"
+                                                      ToolTip.Tip="Open the hosting provider's pull request page for this branch" />
                                         </ContextMenu>
                                     </TreeView.ContextMenu>
                                     <TreeView.ItemTemplate>

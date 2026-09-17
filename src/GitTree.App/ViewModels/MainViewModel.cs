@@ -27,6 +27,7 @@ public partial class MainViewModel : ViewModelBase
     private List<string> _stagedSelection = [];
     private List<DiffLine> _diffLineSelection = [];
     private IReadOnlyList<BranchRef> _branches = [];
+    private IReadOnlyList<RemoteInfo> _remotes = [];
 
     public Window? Host { get; set; }
 
@@ -776,6 +777,7 @@ public partial class MainViewModel : ViewModelBase
         var local = snapshot.Branches.Where(b => !b.IsRemote).ToList();
         var remote = snapshot.Branches.Where(b => b.IsRemote).ToList();
         _branches = snapshot.Branches;
+        _remotes = snapshot.Remotes;
         ReplaceTree(LocalTree, RefTreeNode.FromBranches(local));
         ReplaceTree(RemoteTree, RefTreeNode.FromBranches(remote));
         ReplaceTree(TagTree, RefTreeNode.FromTags(snapshot.Tags));
@@ -974,6 +976,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private Task CreateLocalPullRequestAsync() => CreatePullRequestAsync(SelectedLocalBranch);
+
+    [RelayCommand]
     private Task CheckoutRemoteAsync()
     {
         if (SelectedRemoteBranch is null)
@@ -982,6 +987,80 @@ public partial class MainViewModel : ViewModelBase
         var slash = name.IndexOf('/');
         var local = slash >= 0 ? name[(slash + 1)..] : name;
         return MutateAsync(r => r.CreateBranchAsync(local, name));
+    }
+
+    [RelayCommand]
+    private Task CreateRemotePullRequestAsync() => CreatePullRequestAsync(SelectedRemoteBranch);
+
+    private async Task CreatePullRequestAsync(BranchRef? branch)
+    {
+        if (branch is null)
+        {
+            ErrorMessage = "Select a branch first.";
+            return;
+        }
+
+        if (Host is null)
+            return;
+
+        if (_remotes.Count == 0)
+        {
+            ErrorMessage = "This repository has no remotes, so a pull request cannot be opened.";
+            return;
+        }
+
+        var remotes = new List<PullRequestRemoteChoice>();
+        foreach (var remote in _remotes)
+        {
+            if (!PullRequestUrls.TryParse(remote.FetchUrl, out var hosted))
+                continue;
+            remotes.Add(new PullRequestRemoteChoice
+            {
+                Remote = remote,
+                Hosted = hosted,
+                Label = $"{remote.Name} ({hosted.Display})"
+            });
+        }
+
+        if (remotes.Count == 0)
+        {
+            ErrorMessage = "None of this repository's remotes map to a pull request page.";
+            return;
+        }
+
+        var source = PullRequestUrls.SourceBranchName(branch, _remotes);
+        var destinations = PullRequestUrls.DestinationBranches(_branches, source, _remotes);
+        var preferredRemote = PullRequestUrls.SuggestRemote(_remotes, branch);
+        var selectedRemote = remotes.FirstOrDefault(r =>
+                                 preferredRemote is not null
+                                 && r.Remote.Name.Equals(preferredRemote.Name, StringComparison.OrdinalIgnoreCase))
+                             ?? remotes[0];
+        var dialogVm = new CreatePullRequestViewModel(
+            source,
+            remotes,
+            destinations,
+            selectedRemote,
+            PullRequestUrls.SuggestDestination(destinations));
+        var window = new CreatePullRequestWindow { DataContext = dialogVm };
+        await window.ShowDialog(Host);
+        if (!dialogVm.Confirmed || dialogVm.CreateUrl is null)
+            return;
+
+        try
+        {
+            var opened = await Host.Launcher.LaunchUriAsync(new Uri(dialogVm.CreateUrl));
+            if (!opened)
+            {
+                ErrorMessage = "Could not open the pull request page.";
+                return;
+            }
+
+            StatusMessage = $"Opened pull request for {source}.";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
     }
 
     [RelayCommand]
