@@ -794,6 +794,37 @@ public class GitCliRepositoryTests
     }
 
     [Fact]
+    public async Task DetachedCommitAppearsInLibGit2History()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "one\n");
+            using var repo = new GitCliRepository(root, new LibGit2HistoryReader());
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("first");
+            var baseSha = (await repo.RefreshAsync()).HeadSha;
+
+            await repo.CheckoutAsync(baseSha);
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "two\n");
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("detached commit");
+
+            var snap = await repo.RefreshAsync();
+            Assert.True(snap.IsDetached);
+            var head = Assert.Single(snap.Commits, c => c.Subject == "detached commit");
+            Assert.True(head.IsHead);
+            Assert.Contains("HEAD", head.Decorations);
+            Assert.Contains(baseSha, head.ParentShas);
+            Assert.Contains(snap.Commits, c => c.Subject == "first" && c.Decorations.Contains("main"));
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
     public async Task LibGit2HistoryDoesNotMarkAttachedHeadAsDetached()
     {
         var root = CreateTempRepo();

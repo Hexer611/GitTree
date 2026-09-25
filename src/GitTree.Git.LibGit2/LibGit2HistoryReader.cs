@@ -14,7 +14,7 @@ public sealed class LibGit2HistoryReader : IGitHistoryReader
         foreach (var commit in repo.Commits.QueryBy(new CommitFilter
                  {
                      SortBy = CommitSortStrategies.Time,
-                     IncludeReachableFrom = repo.Branches
+                     IncludeReachableFrom = ReachableRoots(repo)
                  }))
         {
             decorations.TryGetValue(commit.Sha, out var refs);
@@ -35,6 +35,25 @@ public sealed class LibGit2HistoryReader : IGitHistoryReader
 
         GraphLayout.Assign(commits);
         return commits;
+    }
+
+    /// <summary>
+    /// Branch tips plus the current HEAD when it is detached. A commit made on a
+    /// detached HEAD is not reachable from any branch, so walking branches alone hides it.
+    /// </summary>
+    private static object ReachableRoots(Repository repo)
+    {
+        var roots = new List<object>();
+        foreach (var branch in repo.Branches)
+        {
+            if (branch.Tip is not null)
+                roots.Add(branch);
+        }
+
+        if (repo.Info.IsHeadDetached && repo.Head?.Tip is not null)
+            roots.Add(repo.Head.Tip);
+
+        return roots.Count > 0 ? roots : repo.Branches;
     }
 
     private static Dictionary<string, List<string>> BuildDecorations(Repository repo)
