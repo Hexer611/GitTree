@@ -43,7 +43,7 @@ public static class CheckoutTargets
                      .Where(b => b.IsRemote)
                      .OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase))
         {
-            var local = LocalNameFromRemote(branch.Name);
+            var local = RemoteCheckout.LocalNameFromRemote(branch.Name);
             if (local.Length == 0
                 || local.Equals("HEAD", StringComparison.OrdinalIgnoreCase)
                 || !localNames.Add(local))
@@ -72,13 +72,5 @@ public static class CheckoutTargets
                 IsDetached = true
             }
         ];
-    }
-
-    private static string LocalNameFromRemote(string remoteName)
-    {
-        var slash = remoteName.IndexOf('/');
-        if (slash < 0 || slash == remoteName.Length - 1)
-            return remoteName;
-        return remoteName[(slash + 1)..];
     }
 }

@@ -118,6 +118,7 @@ public interface IGitRepository : IDisposable
     Task ResetAsync(string sha, ResetMode mode, CancellationToken cancellationToken = default);
     Task CherryPickAsync(string sha, CherryPickOptions? options = null, CancellationToken cancellationToken = default);
     Task CreateBranchAsync(string name, string? startPoint = null, CancellationToken cancellationToken = default);
+    Task CheckoutOrResetBranchAsync(string name, string startPoint, CancellationToken cancellationToken = default);
     Task DeleteBranchAsync(string name, bool force = false, CancellationToken cancellationToken = default);
 
     Task<string> FetchAsync(string? remote = null, CancellationToken cancellationToken = default);

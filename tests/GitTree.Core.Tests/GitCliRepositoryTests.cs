@@ -885,6 +885,41 @@ public class GitCliRepositoryTests
     }
 
     [Fact]
+    public async Task CheckoutOrResetBranchMovesExistingLocalOntoRemoteTip()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "one\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("first");
+            var first = (await repo.RefreshAsync()).HeadSha;
+            Run(root, "branch", "feature");
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "two\n");
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("second");
+            var second = (await repo.RefreshAsync()).HeadSha;
+            Run(root, "update-ref", "refs/remotes/origin/feature", second);
+            await repo.CheckoutAsync("feature");
+
+            var before = await repo.RefreshAsync();
+            Assert.Equal("feature", before.CurrentBranch);
+            Assert.Equal(first, before.HeadSha);
+
+            await repo.CheckoutOrResetBranchAsync("feature", "origin/feature");
+            var after = await repo.RefreshAsync();
+            Assert.False(after.IsDetached);
+            Assert.Equal("feature", after.CurrentBranch);
+            Assert.Equal(second, after.HeadSha);
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
     public async Task CloneCopiesRemoteIntoDestination()
     {
         var source = CreateTempRepo();

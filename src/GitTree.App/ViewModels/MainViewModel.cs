@@ -983,10 +983,7 @@ public partial class MainViewModel : ViewModelBase
     {
         if (SelectedRemoteBranch is null)
             return Task.CompletedTask;
-        var name = SelectedRemoteBranch.Name;
-        var slash = name.IndexOf('/');
-        var local = slash >= 0 ? name[(slash + 1)..] : name;
-        return MutateAsync(r => r.CreateBranchAsync(local, name));
+        return CheckoutRemoteRefAsync(SelectedRemoteBranch.Name);
     }
 
     [RelayCommand]
@@ -1092,22 +1089,57 @@ public partial class MainViewModel : ViewModelBase
         }
 
         if (choice.IsRemote)
-        {
-            var local = choice.LocalName;
-            var localExists = _branches.Any(b =>
-                !b.IsRemote && b.Name.Equals(local, StringComparison.OrdinalIgnoreCase));
-            if (localExists)
-            {
-                _pendingStatus = $"Checked out {choice.RefOrSha} (detached; local '{local}' already exists).";
-                return MutateAsync(r => r.CheckoutAsync(choice.RefOrSha));
-            }
-
-            _pendingStatus = $"Checked out {local} from {choice.RefOrSha}.";
-            return MutateAsync(r => r.CreateBranchAsync(local, choice.RefOrSha));
-        }
+            return CheckoutRemoteRefAsync(choice.RefOrSha);
 
         _pendingStatus = $"Checked out {choice.RefOrSha}.";
         return MutateAsync(r => r.CheckoutAsync(choice.RefOrSha));
+    }
+
+    private async Task CheckoutRemoteRefAsync(string remoteRef)
+    {
+        var plan = RemoteCheckout.For(remoteRef, _branches, Commits);
+        switch (plan.Kind)
+        {
+            case RemoteCheckoutKind.CreateLocal:
+                _pendingStatus = $"Checked out {plan.LocalName} from {plan.RemoteRef}.";
+                await MutateAsync(r => r.CreateBranchAsync(plan.LocalName, plan.RemoteRef));
+                return;
+            case RemoteCheckoutKind.CheckoutLocal:
+                _pendingStatus = $"Checked out {plan.LocalName}.";
+                await MutateAsync(r => r.CheckoutAsync(plan.LocalName));
+                return;
+            case RemoteCheckoutKind.Conflict:
+                await ResolveRemoteCheckoutConflictAsync(plan);
+                return;
+        }
+    }
+
+    private async Task ResolveRemoteCheckoutConflictAsync(RemoteCheckoutPlan plan)
+    {
+        if (Host is null)
+            return;
+
+        var dialogVm = new RemoteCheckoutConflictViewModel(plan);
+        var window = new RemoteCheckoutConflictWindow { DataContext = dialogVm };
+        await window.ShowDialog(Host);
+        if (!dialogVm.Confirmed || dialogVm.SelectedOption is null)
+            return;
+
+        switch (dialogVm.SelectedOption.Action)
+        {
+            case RemoteCheckoutConflictAction.ReplaceLocal:
+                _pendingStatus = $"Checked out {plan.LocalName} from {plan.RemoteRef} (replaced local).";
+                await MutateAsync(r => r.CheckoutOrResetBranchAsync(plan.LocalName, plan.RemoteRef));
+                return;
+            case RemoteCheckoutConflictAction.CheckoutLocal:
+                _pendingStatus = $"Checked out {plan.LocalName}.";
+                await MutateAsync(r => r.CheckoutAsync(plan.LocalName));
+                return;
+            case RemoteCheckoutConflictAction.DetachAtRemote:
+                _pendingStatus = $"Checked out {plan.RemoteRef} (detached).";
+                await MutateAsync(r => r.CheckoutAsync(plan.RemoteRef));
+                return;
+        }
     }
 
     public IReadOnlyList<CheckoutChoice> CheckoutChoicesFor(CommitNode? commit) =>

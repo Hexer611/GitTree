@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GitTree.App.ViewModels"
+        xmlns:core="using:GitTree.Core"
+        x:Class="GitTree.App.Views.RemoteCheckoutConflictWindow"
+        x:DataType="vm:RemoteCheckoutConflictViewModel"
+        Icon="/Assets/gittree.ico"
+        Title="Local branch already exists"
+        Width="560"
+        SizeToContent="Height"
+        MinWidth="480"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <DockPanel Margin="20">
+        <TextBlock DockPanel.Dock="Top"
+                   Text="{Binding Summary}"
+                   FontSize="14" Margin="0,0,0,16" TextWrapping="Wrap" />
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Classes="ghost" Content="Cancel" Command="{Binding CancelCommand}" />
+            <Button Classes="accent" Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}"
+                    IsVisible="{Binding !IsDestructive}" />
+            <Button Classes="danger" Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}"
+                    IsVisible="{Binding IsDestructive}" />
+        </StackPanel>
+
+        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" RowSpacing="10">
+            <TextBlock Text="Do this:" Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1"
+                      ItemsSource="{Binding Options}"
+                      SelectedItem="{Binding SelectedOption}"
+                      HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="core:RemoteCheckoutOption">
+                        <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <TextBlock Grid.Row="1" Grid.Column="1"
+                       Text="{Binding SelectedDescription}"
+                       Foreground="{DynamicResource MutedBrush}"
+                       FontSize="12.5"
+                       TextWrapping="Wrap" />
+        </Grid>
+    </DockPanel>
+</Window>

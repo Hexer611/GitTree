@@ -186,6 +186,9 @@ public sealed class GitCliRepository : IGitRepository
     public Task CreateBranchAsync(string name, string? startPoint = null, CancellationToken cancellationToken = default)
         => _git.RunAsync(startPoint is null ? ["checkout", "-b", name] : ["checkout", "-b", name, startPoint], cancellationToken: cancellationToken);
 
+    public Task CheckoutOrResetBranchAsync(string name, string startPoint, CancellationToken cancellationToken = default)
+        => _git.RunAsync(["checkout", "-B", name, startPoint], cancellationToken: cancellationToken);
+
     public Task DeleteBranchAsync(string name, bool force = false, CancellationToken cancellationToken = default)
         => _git.RunAsync(["branch", force ? "-D" : "-d", name], cancellationToken: cancellationToken);
 
