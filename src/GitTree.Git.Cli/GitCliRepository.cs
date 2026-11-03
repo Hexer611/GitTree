@@ -332,8 +332,9 @@ public sealed class GitCliRepository : IGitRepository
         {
             try
             {
+                var message = await BuildMergeMessageAsync(worktree.MergeRef, cancellationToken);
                 await _git.RunAsync(
-                    ["merge", "--no-edit", worktree.MergeRef],
+                    ["merge", "--no-edit", "-m", message, worktree.MergeRef],
                     cancellationToken: cancellationToken);
             }
             catch (GitException ex)
@@ -719,8 +720,78 @@ public sealed class GitCliRepository : IGitRepository
         return _git.RunAsync(["worktree", "remove", "--force", worktree.Path], cancellationToken: cancellationToken);
     }
 
-    public Task MergeAsync(string branch, CancellationToken cancellationToken = default)
-        => _git.RunAsync(["merge", "--no-edit", branch], cancellationToken: cancellationToken);
+    public async Task MergeAsync(string branch, CancellationToken cancellationToken = default)
+    {
+        var message = await BuildMergeMessageAsync(branch, cancellationToken);
+        await _git.RunAsync(["merge", "--no-edit", "-m", message, branch], cancellationToken: cancellationToken);
+    }
+
+    private async Task<string> BuildMergeMessageAsync(string branchOrSha, CancellationToken cancellationToken)
+    {
+        var current = (await _git.RunAsync(
+            ["rev-parse", "--abbrev-ref", "HEAD"],
+            throwOnError: false,
+            cancellationToken: cancellationToken)).Trim();
+        var into = current is "HEAD" or "" ? null : current;
+
+        var (label, logName, source) = await DescribeMergeSourceAsync(branchOrSha, cancellationToken);
+        var subjects = await _git.RunAsync(
+            ["log", "--reverse", "--format=%s", $"HEAD..{source}"],
+            throwOnError: false,
+            cancellationToken: cancellationToken);
+
+        var message = into is null
+            ? $"Merge {label}"
+            : $"Merge {label} into {into}";
+
+        var lines = subjects.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (lines.Length == 0)
+            return message;
+
+        return message + Environment.NewLine + Environment.NewLine
+            + $"* {logName}:" + Environment.NewLine
+            + string.Join(Environment.NewLine, lines.Select(line => "  " + line));
+    }
+
+    private async Task<(string Label, string LogName, string Source)> DescribeMergeSourceAsync(
+        string branchOrSha,
+        CancellationToken cancellationToken)
+    {
+        var sha = (await _git.RunAsync(
+            ["rev-parse", "--verify", "--quiet", $"{branchOrSha}^{{commit}}"],
+            throwOnError: false,
+            cancellationToken: cancellationToken)).Trim();
+        var point = string.IsNullOrWhiteSpace(sha) ? branchOrSha : sha;
+        var refs = await _git.RunAsync(
+            ["for-each-ref", "--points-at", point, "--format=%(refname)", "refs/heads", "refs/remotes"],
+            throwOnError: false,
+            cancellationToken: cancellationToken);
+        var names = refs.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        var chosen = names.FirstOrDefault(name =>
+                name.Equals($"refs/heads/{branchOrSha}", StringComparison.Ordinal)
+                || name.Equals($"refs/remotes/{branchOrSha}", StringComparison.Ordinal))
+            ?? names.FirstOrDefault(name => name.StartsWith("refs/heads/", StringComparison.Ordinal))
+            ?? names.FirstOrDefault();
+
+        if (chosen is null)
+        {
+            var shortSha = sha.Length >= 7 ? sha[..7] : branchOrSha;
+            var source = string.IsNullOrWhiteSpace(sha) ? branchOrSha : sha;
+            return ($"commit '{shortSha}'", shortSha, source);
+        }
+
+        if (chosen.StartsWith("refs/remotes/", StringComparison.Ordinal))
+        {
+            var name = chosen["refs/remotes/".Length..];
+            return ($"remote-tracking branch '{name}'", name, name);
+        }
+
+        var branch = chosen.StartsWith("refs/heads/", StringComparison.Ordinal)
+            ? chosen["refs/heads/".Length..]
+            : branchOrSha;
+        return ($"branch '{branch}'", branch, branch);
+    }
 
     public Task RebaseAsync(string onto, CancellationToken cancellationToken = default)
         => _git.RunAsync(["rebase", onto], cancellationToken: cancellationToken);

@@ -637,6 +637,10 @@ public class GitCliRepositoryTests
             var head = Assert.Single(after.Commits, c => c.IsHead);
             Assert.True(head.IsMerge);
             Assert.Equal("main", after.CurrentBranch);
+            var message = RunCapture(root, "log", "-1", "--format=%B");
+            Assert.Contains("Merge branch 'side' into main", message);
+            Assert.Contains("* side:", message);
+            Assert.Contains("add side", message);
             var files = await repo.GetCommitFilesAsync(head.Sha);
             Assert.Contains(files, f => f.Path == "side.txt");
             Assert.DoesNotContain(files, f => f.Path == "main.txt");
