@@ -637,6 +637,11 @@ public class GitCliRepositoryTests
             var head = Assert.Single(after.Commits, c => c.IsHead);
             Assert.True(head.IsMerge);
             Assert.Equal("main", after.CurrentBranch);
+            var files = await repo.GetCommitFilesAsync(head.Sha);
+            Assert.Contains(files, f => f.Path == "side.txt");
+            Assert.DoesNotContain(files, f => f.Path == "main.txt");
+            var diff = await repo.GetDiffAsync(new DiffRequest { Kind = DiffKind.Commit, CommitSha = head.Sha, Path = "side.txt" });
+            Assert.Contains("+side", diff);
             Assert.Equal("side\n", (await File.ReadAllTextAsync(Path.Combine(root, "side.txt"))).Replace("\r\n", "\n"));
             Assert.Equal("main\n", (await File.ReadAllTextAsync(Path.Combine(root, "main.txt"))).Replace("\r\n", "\n"));
         }

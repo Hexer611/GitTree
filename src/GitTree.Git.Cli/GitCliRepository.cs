@@ -755,7 +755,7 @@ public sealed class GitCliRepository : IGitRepository
     public async Task<IReadOnlyList<FileChange>> GetCommitFilesAsync(string sha, CancellationToken cancellationToken = default)
     {
         var output = await _git.RunAsync(
-            ["diff-tree", "--no-commit-id", "-r", "-M", "--name-status", sha],
+            ["show", "-m", "--first-parent", "--format=", "--name-status", "-M", sha],
             throwOnError: false,
             cancellationToken: cancellationToken);
         return ParseNameStatus(output);
@@ -767,7 +767,7 @@ public sealed class GitCliRepository : IGitRepository
         {
             DiffKind.Index => await _git.RunAsync(WithPath(["diff", "--cached"], request.Path), throwOnError: false, cancellationToken: cancellationToken),
             DiffKind.Commit when request.CommitSha is not null =>
-                await _git.RunAsync(WithPath(["show", "--format=", request.CommitSha], request.Path), throwOnError: false, cancellationToken: cancellationToken),
+                await _git.RunAsync(WithPath(["show", "-m", "--first-parent", "--format=", request.CommitSha], request.Path), throwOnError: false, cancellationToken: cancellationToken),
             DiffKind.Stash when request.StashIndex is int stashIndex =>
                 await GetStashDiffAsync(stashIndex, request.Path, cancellationToken),
             _ => await _git.RunAsync(WithPath(["diff"], request.Path), throwOnError: false, cancellationToken: cancellationToken)
