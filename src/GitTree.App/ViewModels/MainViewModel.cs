@@ -617,6 +617,38 @@ public partial class MainViewModel : ViewModelBase
         await window.ShowDialog(Host);
     }
 
+    [RelayCommand]
+    private void OpenTerminal()
+    {
+        if (_repo is null)
+            return;
+
+        var folder = _repo.WorkingDirectory;
+        var gitBash = GitBash.FindInstalled();
+        if (gitBash is null)
+        {
+            ErrorMessage = "Git Bash was not found. Install Git for Windows to open a terminal in this folder.";
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = gitBash,
+                WorkingDirectory = folder,
+                UseShellExecute = false,
+                ArgumentList = { GitBash.CdArgument(folder) }
+            })?.Dispose();
+            ErrorMessage = "";
+            StatusMessage = "Opened Git Bash in this folder.";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+    }
+
     public Task OpenRepositoryAsync(string path) => OpenRepositoryAsync(path, bumpRecent: true);
 
     public async Task OpenRepositoryAsync(string path, bool bumpRecent)

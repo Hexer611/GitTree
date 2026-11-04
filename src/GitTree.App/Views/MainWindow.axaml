@@ -80,6 +80,9 @@
                             <TextBlock Text="Refresh needed" FontWeight="SemiBold" FontSize="12.5" />
                         </StackPanel>
                     </Button>
+                    <Button Classes="ghost" Content="Terminal" Command="{Binding OpenTerminalCommand}"
+                            IsEnabled="{Binding HasRepo}"
+                            ToolTip.Tip="Open Git Bash in this repository folder" />
                     <Button Classes="ghost" Content="Settings" Command="{Binding OpenSettingsCommand}"
                             ToolTip.Tip="Themes and window position" />
                 </StackPanel>
