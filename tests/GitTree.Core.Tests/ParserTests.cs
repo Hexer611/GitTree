@@ -42,6 +42,41 @@ public class StatusPorcelainParserTests
     }
 }
 
+public class BranchCommitLineTests
+{
+    [Fact]
+    public void KeepsCommitsMadeAfterTheForkAndNotAfterAChildBranch()
+    {
+        var commits = new List<CommitNode>
+        {
+            Node("hotfix-2", "hotfix-1"),
+            Node("feature", "hotfix-1"),
+            Node("hotfix-1", "base"),
+            Node("master-2", "base"),
+            Node("base", "root"),
+            Node("root")
+        };
+
+        var owned = BranchCommitLine.OwnCommits("hotfix-2", ["feature", "master-2"], commits);
+
+        Assert.Contains("hotfix-2", owned);
+        Assert.Contains("hotfix-1", owned);
+        Assert.DoesNotContain("base", owned);
+        Assert.DoesNotContain("feature", owned);
+        Assert.DoesNotContain("master-2", owned);
+    }
+
+    private static CommitNode Node(string sha, params string[] parents) => new()
+    {
+        Sha = sha,
+        ParentShas = parents,
+        AuthorName = "t",
+        AuthorEmail = "t@t",
+        AuthorDate = DateTimeOffset.UnixEpoch,
+        Subject = sha
+    };
+}
+
 public class GraphLayoutTests
 {
     [Fact]
@@ -74,6 +109,45 @@ public class GraphLayoutTests
         Assert.Equal(0, commits[0].Lane);
         Assert.True(commits[0].Edges.Count >= 2);
         Assert.True(commits[0].TrackCount >= 2);
+        Assert.Contains(commits[0].Edges, e => e.ToLane == 0 && e.ParentSha == "a");
+        Assert.Contains(commits[0].Edges, e => e.ToLane != 0 && e.ParentSha == "b");
+    }
+
+    [Fact]
+    public void NewerSideBranchDoesNotTakeTheMergedLine()
+    {
+        // materialMenu commits are newer than the hotfix merges they were
+        // branched from, so date order reaches the shared parent first.
+        // Those commits still belong on the hotfix column.
+        var commits = new List<CommitNode>
+        {
+            Node("into-hotfix", "hotfix-merge", "material-tip"),
+            Node("material-tip", "material-mid"),
+            Node("material-mid", "material-base"),
+            Node("material-base", "shared-merge"),
+            Node("hotfix-merge", "shared-merge", "other"),
+            Node("shared-merge", "length-check", "side"),
+            Node("length-check", "root"),
+            Node("side", "root"),
+            Node("other"),
+            Node("root")
+        };
+
+        GraphLayout.Assign(commits);
+
+        var hotfix = commits[0];
+        var material = commits[1];
+        var shared = commits[5];
+        var lengthCheck = commits[6];
+
+        Assert.Equal(hotfix.Lane, commits[4].Lane);
+        Assert.Equal(hotfix.Lane, shared.Lane);
+        Assert.Equal(hotfix.Lane, lengthCheck.Lane);
+        Assert.NotEqual(hotfix.Lane, material.Lane);
+        Assert.Equal(material.Lane, commits[2].Lane);
+        Assert.Equal(material.Lane, commits[3].Lane);
+        Assert.Contains(shared.IncomingLanes, lane => lane == material.Lane);
+        Assert.Contains(commits[4].Edges, edge => edge.ParentSha == "shared-merge" && edge.ToLane == hotfix.Lane);
     }
 
     private static CommitNode Node(string sha, params string[] parents) => new()

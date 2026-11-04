@@ -215,10 +215,12 @@ public partial class MainViewModel : ViewModelBase
             if (SelectedStashNode is not null)
                 SelectedStashNode = null;
             IsShowingCommitFiles = true;
+            ApplyBranchHighlight(SoleBranchTip(value) ?? SelectedLocalBranch?.TipSha ?? SelectedRemoteBranch?.TipSha);
             _ = LoadCommitAsync(value);
             return;
         }
 
+        ApplyBranchHighlight(SelectedLocalBranch?.TipSha ?? SelectedRemoteBranch?.TipSha);
         if (SelectedStash is null)
         {
             IsShowingCommitFiles = false;
@@ -259,12 +261,14 @@ public partial class MainViewModel : ViewModelBase
     partial void OnSelectedLocalNodeChanged(RefTreeNode? value)
     {
         SelectedLocalBranch = value?.Branch;
+        ApplyBranchHighlight(value?.Branch?.TipSha ?? SelectedRemoteBranch?.TipSha);
         RevealCommit(value?.Branch?.TipSha);
     }
 
     partial void OnSelectedRemoteNodeChanged(RefTreeNode? value)
     {
         SelectedRemoteBranch = value?.Branch;
+        ApplyBranchHighlight(value?.Branch?.TipSha ?? SelectedLocalBranch?.TipSha);
         RevealCommit(value?.Branch?.TipSha);
     }
 
@@ -317,6 +321,76 @@ public partial class MainViewModel : ViewModelBase
 
         SelectedCommit = commit;
         CommitRevealed?.Invoke(commit);
+    }
+
+    private string? SoleBranchTip(CommitNode commit)
+    {
+        var tips = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var branch in _branches)
+        {
+            var name = branch.IsRemote ? RemoteCheckout.LocalNameFromRemote(branch.Name) : branch.Name;
+            if (string.IsNullOrWhiteSpace(name) || name.Equals("HEAD", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (!tips.ContainsKey(name) || !branch.IsRemote)
+                tips[name] = branch.TipSha;
+        }
+
+        string? found = null;
+        foreach (var pair in tips)
+        {
+            var owned = BranchCommitLine.OwnCommits(pair.Value, tips.Values, Commits);
+            if (!owned.Contains(commit.Sha))
+                continue;
+            if (found is not null)
+                return null;
+            found = pair.Value;
+        }
+
+        return found;
+    }
+
+    private void ApplyBranchHighlight(string? tipSha)
+    {
+        var dots = new bool[Commits.Count];
+        var lanes = new List<int>[Commits.Count];
+        var active = false;
+        if (!string.IsNullOrWhiteSpace(tipSha) && Commits.Count > 0)
+        {
+            var owned = BranchCommitLine.OwnCommits(
+                tipSha,
+                _branches.Select(branch => branch.TipSha),
+                Commits);
+            if (owned.Count > 0)
+            {
+                active = true;
+                var rowOf = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                for (var i = 0; i < Commits.Count; i++)
+                    rowOf.TryAdd(Commits[i].Sha, i);
+
+                for (var i = 0; i < Commits.Count; i++)
+                {
+                    var commit = Commits[i];
+                    if (!owned.Contains(commit.Sha))
+                        continue;
+
+                    dots[i] = true;
+                    var end = i;
+                    var parent = commit.ParentShas.FirstOrDefault(sha => !string.IsNullOrWhiteSpace(sha));
+                    if (parent is not null && rowOf.TryGetValue(parent, out var parentRow))
+                        end = parentRow;
+
+                    for (var row = i; row <= end && row < Commits.Count; row++)
+                    {
+                        lanes[row] ??= [];
+                        if (!lanes[row].Contains(commit.Lane))
+                            lanes[row].Add(commit.Lane);
+                    }
+                }
+            }
+        }
+
+        for (var i = 0; i < Commits.Count; i++)
+            Commits[i].SetGraphHighlight(active, dots[i], lanes[i] ?? []);
     }
 
     partial void OnIsMergingChanged(bool value) => OnPropertyChanged(nameof(HasConflictOperation));
@@ -796,6 +870,7 @@ public partial class MainViewModel : ViewModelBase
         AheadCount = snapshot.Sync.Ahead;
         BehindCount = snapshot.Sync.Behind;
         HasUpstream = snapshot.Sync.HasUpstream;
+        ApplyBranchHighlight(SelectedLocalBranch?.TipSha ?? SelectedRemoteBranch?.TipSha);
         HasAhead = snapshot.Sync.HasAhead;
         HasBehind = snapshot.Sync.HasBehind;
         IsInSync = snapshot.Sync.IsInSync;

@@ -25,11 +25,15 @@ public sealed class GraphRowControl : Control
         Color.Parse("#8B9CFF")
     ];
 
+    private CommitNode? _hooked;
+
     static GraphRowControl()
     {
         AffectsRender<GraphRowControl>(CommitProperty);
         AffectsRender<GraphRowControl>(BoundsProperty);
         AffectsMeasure<GraphRowControl>(CommitProperty);
+        CommitProperty.Changed.AddClassHandler<GraphRowControl>((control, args) =>
+            control.HookCommit(args.NewValue as CommitNode));
     }
 
     public CommitNode? Commit
@@ -72,18 +76,44 @@ public sealed class GraphRowControl : Control
                 LineJoin = PenLineJoin.Round
             };
 
+        void Paint(int lane, Action draw)
+        {
+            var marked = commit.GraphHighlightActive && commit.HighlightLanes.Contains(lane);
+            if (marked)
+                draw();
+            using var fade = context.PushOpacity(commit.GraphHighlightActive && !marked ? 0.16 : 1);
+            draw();
+        }
+
         foreach (var lane in commit.PassingLanes)
         {
             var x = X(lane);
             if (lane == commit.Lane)
             {
-                DrawLine(context, LinePen(lane, 5.2, 42), new Point(x, 0), new Point(x, midY - radius - 1.5));
-                DrawLine(context, LinePen(lane, 2.15), new Point(x, 0), new Point(x, midY - radius - 1.5));
+                Paint(lane, () =>
+                {
+                    DrawLine(context, LinePen(lane, 5.2, 42), new Point(x, 0), new Point(x, midY - radius - 1.5));
+                    DrawLine(context, LinePen(lane, 2.15), new Point(x, 0), new Point(x, midY - radius - 1.5));
+                });
                 continue;
             }
 
-            DrawLine(context, LinePen(lane, 5.2, 42), new Point(x, 0), new Point(x, bottom));
-            DrawLine(context, LinePen(lane, 2.15), new Point(x, 0), new Point(x, bottom));
+            Paint(lane, () =>
+            {
+                DrawLine(context, LinePen(lane, 5.2, 42), new Point(x, 0), new Point(x, bottom));
+                DrawLine(context, LinePen(lane, 2.15), new Point(x, 0), new Point(x, bottom));
+            });
+        }
+
+        foreach (var lane in commit.IncomingLanes)
+        {
+            var from = new Point(X(lane), 0);
+            var to = new Point(cx, midY);
+            Paint(lane, () =>
+            {
+                DrawCurve(context, LinePen(lane, 5.4, 40), from, to);
+                DrawCurve(context, LinePen(lane, 2.2), from, to);
+            });
         }
 
         foreach (var edge in commit.Edges)
@@ -91,13 +121,23 @@ public sealed class GraphRowControl : Control
             var from = new Point(X(edge.FromLane), midY + radius * 0.15);
             var to = new Point(X(edge.ToLane), bottom);
             var colorLane = edge.ToLane;
-            DrawCurve(context, LinePen(colorLane, 5.4, 40), from, to);
-            DrawCurve(context, LinePen(colorLane, 2.2), from, to);
+            Paint(colorLane, () =>
+            {
+                DrawCurve(context, LinePen(colorLane, 5.4, 40), from, to);
+                DrawCurve(context, LinePen(colorLane, 2.2), from, to);
+            });
         }
 
         var color = LaneColor(commit.Lane);
-        var glow = new SolidColorBrush(Color.FromArgb(isHead ? (byte)90 : (byte)50, color.R, color.G, color.B));
-        context.DrawEllipse(glow, null, new Point(cx, midY), radius + (isHead ? 7 : 5.2), radius + (isHead ? 7 : 5.2));
+        var markDot = commit.GraphHighlightActive && commit.HighlightDot;
+        var glowAlpha = markDot ? (byte)120 : isHead ? (byte)90 : (byte)50;
+        var glow = new SolidColorBrush(Color.FromArgb(glowAlpha, color.R, color.G, color.B));
+        using (context.PushOpacity(commit.GraphHighlightActive && !markDot ? 0.16 : 1))
+        {
+            context.DrawEllipse(glow, null, new Point(cx, midY), radius + (markDot ? 8.5 : isHead ? 7 : 5.2), radius + (markDot ? 8.5 : isHead ? 7 : 5.2));
+            if (markDot)
+                context.DrawEllipse(null, new Pen(Brush(commit.Lane), 1.6), new Point(cx, midY), radius + 3.2, radius + 3.2);
+        }
 
         var fill = new RadialGradientBrush
         {
@@ -122,6 +162,15 @@ public sealed class GraphRowControl : Control
 
         if (isHead)
             context.DrawEllipse(null, new Pen(Brush(commit.Lane), 1.35), new Point(cx, midY), radius + 3.4, radius + 3.4);
+    }
+
+    private void HookCommit(CommitNode? commit)
+    {
+        if (_hooked is not null)
+            _hooked.GraphHighlightChanged -= InvalidateVisual;
+        _hooked = commit;
+        if (_hooked is not null)
+            _hooked.GraphHighlightChanged += InvalidateVisual;
     }
 
     private static double X(int lane) => PadX + lane * Spacing;
