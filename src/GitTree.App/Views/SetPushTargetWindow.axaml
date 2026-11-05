@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GitTree.App.ViewModels"
+        x:Class="GitTree.App.Views.SetPushTargetWindow"
+        x:DataType="vm:SetPushTargetViewModel"
+        Icon="/Assets/gittree.ico"
+        Title="Set Push Target"
+        Width="520"
+        SizeToContent="Height"
+        MinWidth="440"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <DockPanel Margin="20">
+        <TextBlock DockPanel.Dock="Top"
+                   Text="Choose the remote branch this local branch pushes to. Pull uses the same target."
+                   FontSize="14" Margin="0,0,0,16" TextWrapping="Wrap" />
+
+        <StackPanel DockPanel.Dock="Bottom" Spacing="10" Margin="0,20,0,0">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource DangerBrush}"
+                       TextWrapping="Wrap" />
+            <DockPanel>
+                <Button DockPanel.Dock="Left" Classes="ghost" Content="Clear target"
+                        Command="{Binding ClearCommand}" IsVisible="{Binding HasCurrentTarget}" />
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Classes="ghost" Content="Cancel" Command="{Binding CancelCommand}" />
+                    <Button Classes="accent" Content="Save" Command="{Binding ConfirmCommand}" />
+                </StackPanel>
+            </DockPanel>
+        </StackPanel>
+
+        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
+            <TextBlock Text="Local branch:" Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding LocalBranch}" FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Row="1" Text="Current:" Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CurrentTarget}"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Row="2" Text="Remote:" Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Row="2" Grid.Column="1"
+                      ItemsSource="{Binding Remotes}"
+                      SelectedItem="{Binding SelectedRemote}"
+                      HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PushRemoteChoice">
+                        <TextBlock Text="{Binding Name}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <TextBlock Grid.Row="3" Text="Remote branch:" Foreground="{DynamicResource MutedBrush}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Row="3" Grid.Column="1"
+                      IsEditable="True"
+                      ItemsSource="{Binding BranchSuggestions}"
+                      Text="{Binding RemoteBranch, Mode=TwoWay}"
+                      PlaceholderText="Remote branch name"
+                      HorizontalAlignment="Stretch" />
+        </Grid>
+    </DockPanel>
+</Window>

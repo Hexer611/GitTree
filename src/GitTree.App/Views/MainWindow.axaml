@@ -67,6 +67,10 @@
                                        VerticalAlignment="Center" />
                             <TextBlock Text="no upstream" FontSize="11" Foreground="#8B95A8" IsVisible="{Binding HasNoUpstream}"
                                        VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ConfiguredPushTarget}" FontSize="11" Foreground="#8B95A8"
+                                       IsVisible="{Binding HasConfiguredPushTarget}" VerticalAlignment="Center"
+                                       MaxWidth="220" TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="Push and pull use this remote branch." />
                         </StackPanel>
                     </Border>
                     <Button Classes="ghost" Content="Refresh" Command="{Binding RefreshCommand}"
@@ -102,7 +106,7 @@
                         </StackPanel>
                     </Button>
                     <Button Classes="ghost" Command="{Binding PushCommand}" IsEnabled="{Binding HasRepo}"
-                            ToolTip.Tip="Publish local commits to the remote">
+                            ToolTip.Tip="Push this branch to its remote target">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <TextBlock Text="Push" VerticalAlignment="Center" />
                             <Border CornerRadius="999" Padding="6,1" Background="#28F5C542" IsVisible="{Binding HasAhead}">
@@ -146,6 +150,10 @@
                                             <MenuItem Header="Checkout" Command="{Binding CheckoutLocalCommand}" />
                                             <MenuItem Header="Create Pull Request..." Command="{Binding CreateLocalPullRequestCommand}"
                                                       ToolTip.Tip="Open the hosting provider's pull request page for this branch" />
+                                            <MenuItem Header="Rename..." Command="{Binding RenameLocalBranchCommand}"
+                                                      IsEnabled="{Binding HasSelectedLocalBranch}" />
+                                            <MenuItem Header="Set push target..." Command="{Binding SetPushTargetCommand}"
+                                                      IsEnabled="{Binding HasSelectedLocalBranch}" />
                                             <Separator />
                                             <MenuItem Header="Delete branch" Command="{Binding DeleteLocalBranchCommand}" />
                                         </ContextMenu>
@@ -160,8 +168,15 @@
                                                     <Ellipse Width="7" Height="7" Fill="{DynamicResource LineBrush}" HorizontalAlignment="Center"
                                                              IsVisible="{Binding IsInactiveBranch}" />
                                                 </Panel>
-                                                <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
-                                                           VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1" Spacing="0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding PushTargetBadge}" FontSize="10"
+                                                               Foreground="{DynamicResource MutedBrush}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               IsVisible="{Binding HasDistinctPushTarget}"
+                                                               ToolTip.Tip="{Binding PushTargetTip}" />
+                                                </StackPanel>
                                                 <TextBlock Grid.Column="2" Text="{Binding SyncBadge}" FontSize="10"
                                                            Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Center" Margin="6,0,0,0"
                                                            IsVisible="{Binding HasSyncBadge}" />

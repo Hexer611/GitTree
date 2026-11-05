@@ -22,6 +22,7 @@ public sealed class GitCliRepository : IGitRepository
         var headTask = _git.RunAsync(["rev-parse", "HEAD"], throwOnError: false, cancellationToken: cancellationToken);
         var branchTask = _git.RunAsync(["rev-parse", "--abbrev-ref", "HEAD"], throwOnError: false, cancellationToken: cancellationToken);
         var branchesTask = _git.RunAsync(["for-each-ref", "--format=%(refname)%1f%(objectname)%1f%(upstream:short)%1f%(HEAD)%1f%(upstream:track)", "refs/heads", "refs/remotes"], throwOnError: false, cancellationToken: cancellationToken);
+        var branchConfigTask = _git.RunAsync(["config", "--local", "--get-regexp", "^branch\\."], throwOnError: false, cancellationToken: cancellationToken);
         var tagsTask = _git.RunAsync(["for-each-ref", "--format=%(refname:short)%1f%(objectname)", "refs/tags"], throwOnError: false, cancellationToken: cancellationToken);
         var remotesTask = _git.RunAsync(["remote", "-v"], throwOnError: false, cancellationToken: cancellationToken);
         var stashTask = _git.RunAsync(["stash", "list", "--format=%gd%x1f%H%x1f%s"], throwOnError: false, cancellationToken: cancellationToken);
@@ -32,12 +33,17 @@ public sealed class GitCliRepository : IGitRepository
                      || Directory.Exists(Path.Combine(gitDir, "rebase-apply"));
         var headFile = HeadRefParser.TryRead(gitDir);
 
-        await Task.WhenAll(statusTask, headTask, branchTask, branchesTask, tagsTask, remotesTask, stashTask, worktreesTask);
+        await Task.WhenAll(statusTask, headTask, branchTask, branchesTask, branchConfigTask, tagsTask, remotesTask, stashTask, worktreesTask);
 
         var statusText = statusTask.Result;
         var changes = await FlagWorkingTreeConflictsAsync(StatusPorcelainParser.Parse(statusText), cancellationToken);
         var head = headTask.Result.Trim();
-        var branches = ParseBranches(branchesTask.Result);
+        var remotes = ParseRemotes(remotesTask.Result);
+        // for-each-ref hides an upstream until that remote-tracking ref exists.
+        var branches = BranchPush.Apply(
+            ParseBranches(branchesTask.Result),
+            BranchPush.ParseConfig(branchConfigTask.Result),
+            remotes);
         var currentFromRefs = branches.FirstOrDefault(b => b.IsCurrent && !b.IsRemote)?.Name;
         var headState = HeadRefParser.Resolve(headFile, branchTask.Result, head, currentFromRefs);
 
@@ -76,7 +82,7 @@ public sealed class GitCliRepository : IGitRepository
             Commits = commits,
             Branches = branches,
             Tags = ParseTags(tagsTask.Result),
-            Remotes = ParseRemotes(remotesTask.Result),
+            Remotes = remotes,
             Stashes = StashListParser.Parse(stashTask.Result),
             Worktrees = WorktreeListParser.Parse(worktreesTask.Result, WorkingDirectory),
             Sync = SyncStatusParser.ParsePorcelain(statusText)
@@ -192,6 +198,40 @@ public sealed class GitCliRepository : IGitRepository
     public Task DeleteBranchAsync(string name, bool force = false, CancellationToken cancellationToken = default)
         => _git.RunAsync(["branch", force ? "-D" : "-d", name], cancellationToken: cancellationToken);
 
+    public Task RenameBranchAsync(string oldName, string newName, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(oldName))
+            throw new ArgumentException("A local branch is required.");
+        var error = BranchRefNames.Validate(newName);
+        if (error is not null)
+            throw new ArgumentException(error);
+        return _git.RunAsync(["branch", "-m", oldName.Trim(), newName.Trim()], cancellationToken: cancellationToken);
+    }
+
+    public async Task SetUpstreamAsync(string localBranch, string remote, string remoteBranch, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(localBranch))
+            throw new ArgumentException("A local branch is required.");
+        if (string.IsNullOrWhiteSpace(remote))
+            throw new ArgumentException("A remote is required.");
+        var error = BranchRefNames.Validate(remoteBranch);
+        if (error is not null)
+            throw new ArgumentException(error);
+
+        var branch = localBranch.Trim();
+        var remoteName = remote.Trim();
+        var target = remoteBranch.Trim();
+        await _git.RunAsync(["config", $"branch.{branch}.remote", remoteName], cancellationToken: cancellationToken);
+        await _git.RunAsync(["config", $"branch.{branch}.merge", BranchRefNames.MergeRef(target)], cancellationToken: cancellationToken);
+    }
+
+    public Task UnsetUpstreamAsync(string localBranch, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(localBranch))
+            throw new ArgumentException("A local branch is required.");
+        return _git.RunAsync(["branch", "--unset-upstream", localBranch.Trim()], cancellationToken: cancellationToken);
+    }
+
     public async Task<string> FetchAsync(string? remote = null, CancellationToken cancellationToken = default)
     {
         var output = await _git.RunCaptureAsync(
@@ -208,14 +248,36 @@ public sealed class GitCliRepository : IGitRepository
 
     public async Task<string> PushAsync(string? remote = null, string? branch = null, CancellationToken cancellationToken = default)
     {
-        string output;
+        IReadOnlyList<string> args;
         if (string.IsNullOrWhiteSpace(remote) && string.IsNullOrWhiteSpace(branch))
-            output = await _git.RunCaptureAsync(["push", "-u", "origin", "HEAD"], cancellationToken);
+            args = await DefaultPushArgumentsAsync(cancellationToken);
         else if (string.IsNullOrWhiteSpace(branch))
-            output = await _git.RunCaptureAsync(["push", remote!], cancellationToken);
+            args = ["push", remote!];
         else
-            output = await _git.RunCaptureAsync(["push", "-u", remote ?? "origin", branch], cancellationToken);
+            args = ["push", "-u", remote ?? "origin", branch];
+
+        var output = await _git.RunCaptureAsync(args, cancellationToken);
         return string.IsNullOrWhiteSpace(output) ? "Pushed." : output;
+    }
+
+    private async Task<IReadOnlyList<string>> DefaultPushArgumentsAsync(CancellationToken cancellationToken)
+    {
+        var head = (await _git.RunAsync(
+            ["rev-parse", "--abbrev-ref", "HEAD"],
+            throwOnError: false,
+            cancellationToken: cancellationToken)).Trim();
+        if (string.IsNullOrWhiteSpace(head) || head.Equals("HEAD", StringComparison.Ordinal))
+            return BranchPush.Arguments(null, head);
+
+        var remote = (await _git.RunAsync(
+            ["config", "--local", "--get", $"branch.{head}.remote"],
+            throwOnError: false,
+            cancellationToken: cancellationToken)).Trim();
+        var merge = (await _git.RunAsync(
+            ["config", "--local", "--get", $"branch.{head}.merge"],
+            throwOnError: false,
+            cancellationToken: cancellationToken)).Trim();
+        return BranchPush.Arguments(BranchPush.FromConfig(remote, merge), head);
     }
 
     public Task StashSaveAsync(string? message = null, IReadOnlyList<string>? paths = null, CancellationToken cancellationToken = default)

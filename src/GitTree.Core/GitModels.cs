@@ -8,9 +8,23 @@ public sealed class BranchRef
     public required bool IsRemote { get; init; }
     public required bool IsCurrent { get; init; }
     public string? Upstream { get; init; }
+    public string? PushTargetLabel { get; init; }
     public int Ahead { get; init; }
     public int Behind { get; init; }
     public string DisplayName => IsRemote ? Name : Name;
+
+    public BranchRef WithPushTarget(string? upstream, string? pushTargetLabel) => new()
+    {
+        Name = Name,
+        FullName = FullName,
+        TipSha = TipSha,
+        IsRemote = IsRemote,
+        IsCurrent = IsCurrent,
+        Upstream = upstream,
+        Ahead = Ahead,
+        Behind = Behind,
+        PushTargetLabel = pushTargetLabel
+    };
 }
 
 public sealed class TagRef
@@ -120,6 +134,9 @@ public interface IGitRepository : IDisposable
     Task CreateBranchAsync(string name, string? startPoint = null, CancellationToken cancellationToken = default);
     Task CheckoutOrResetBranchAsync(string name, string startPoint, CancellationToken cancellationToken = default);
     Task DeleteBranchAsync(string name, bool force = false, CancellationToken cancellationToken = default);
+    Task RenameBranchAsync(string oldName, string newName, CancellationToken cancellationToken = default);
+    Task SetUpstreamAsync(string localBranch, string remote, string remoteBranch, CancellationToken cancellationToken = default);
+    Task UnsetUpstreamAsync(string localBranch, CancellationToken cancellationToken = default);
 
     Task<string> FetchAsync(string? remote = null, CancellationToken cancellationToken = default);
     Task<string> PullAsync(CancellationToken cancellationToken = default);

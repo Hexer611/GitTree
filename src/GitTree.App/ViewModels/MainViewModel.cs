@@ -77,6 +77,8 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private bool _isInSync;
     [ObservableProperty] private bool _hasNoUpstream;
     [ObservableProperty] private string _upstreamName = "";
+    [ObservableProperty] private bool _hasConfiguredPushTarget;
+    [ObservableProperty] private string _configuredPushTarget = "";
     [ObservableProperty] private string _aheadBadge = "";
     [ObservableProperty] private string _behindBadge = "";
     [ObservableProperty] private bool _localSectionExpanded = true;
@@ -120,6 +122,7 @@ public partial class MainViewModel : ViewModelBase
 
     public bool ShowWorkspace => HasRepo && !IsMissingRepo;
     public bool ShowHome => !HasRepo && !IsMissingRepo;
+    public bool HasSelectedLocalBranch => SelectedLocalBranch is not null;
 
     public bool HasConflictOperation => IsMerging || IsRebasing || ConflictCount > 0;
     public bool HasDiffLineStats => RemovedLineCount > 0 || AddedLineCount > 0;
@@ -264,6 +267,9 @@ public partial class MainViewModel : ViewModelBase
         ApplyBranchHighlight(value?.Branch?.TipSha ?? SelectedRemoteBranch?.TipSha);
         RevealCommit(value?.Branch?.TipSha);
     }
+
+    partial void OnSelectedLocalBranchChanged(BranchRef? value) =>
+        OnPropertyChanged(nameof(HasSelectedLocalBranch));
 
     partial void OnSelectedRemoteNodeChanged(RefTreeNode? value)
     {
@@ -906,7 +912,13 @@ public partial class MainViewModel : ViewModelBase
         HasAhead = snapshot.Sync.HasAhead;
         HasBehind = snapshot.Sync.HasBehind;
         IsInSync = snapshot.Sync.IsInSync;
-        HasNoUpstream = !snapshot.IsDetached && !snapshot.Sync.HasUpstream;
+        var currentLocal = snapshot.Branches.FirstOrDefault(b => b.IsCurrent && !b.IsRemote);
+        var configuredTarget = !snapshot.Sync.HasUpstream && !string.IsNullOrWhiteSpace(currentLocal?.Upstream)
+            ? currentLocal!.Upstream!
+            : "";
+        HasConfiguredPushTarget = configuredTarget.Length > 0;
+        ConfiguredPushTarget = configuredTarget.Length > 0 ? $"→ {configuredTarget}" : "";
+        HasNoUpstream = !snapshot.IsDetached && !snapshot.Sync.HasUpstream && configuredTarget.Length == 0;
         UpstreamName = snapshot.Sync.Upstream ?? "";
         AheadBadge = $"↑ {snapshot.Sync.Ahead}";
         BehindBadge = $"↓ {snapshot.Sync.Behind}";
@@ -1080,6 +1092,74 @@ public partial class MainViewModel : ViewModelBase
         }
 
         return MutateAsync(r => r.DeleteBranchAsync(SelectedLocalBranch.Name, force: true));
+    }
+
+    [RelayCommand]
+    private async Task RenameLocalBranchAsync()
+    {
+        if (SelectedLocalBranch is null)
+        {
+            ErrorMessage = "Select a local branch first.";
+            return;
+        }
+
+        if (Host is null)
+            return;
+
+        var branch = SelectedLocalBranch;
+        var dialog = new RenameBranchViewModel(branch.Name);
+        var window = new RenameBranchWindow { DataContext = dialog };
+        await window.ShowDialog(Host);
+        if (!dialog.Confirmed || string.IsNullOrWhiteSpace(dialog.ConfirmedName))
+            return;
+
+        _pendingStatus = $"Renamed {branch.Name} to {dialog.ConfirmedName}.";
+        await MutateAsync(r => r.RenameBranchAsync(branch.Name, dialog.ConfirmedName));
+    }
+
+    [RelayCommand]
+    private async Task SetPushTargetAsync()
+    {
+        if (SelectedLocalBranch is null)
+        {
+            ErrorMessage = "Select a local branch first.";
+            return;
+        }
+
+        if (Host is null)
+            return;
+
+        if (_remotes.Count == 0)
+        {
+            ErrorMessage = "This repository has no remotes, so a push target cannot be set.";
+            return;
+        }
+
+        var branch = SelectedLocalBranch;
+        var current = BranchPush.FromUpstream(branch.Upstream, _remotes);
+        var dialog = new SetPushTargetViewModel(branch, _remotes, _branches, current);
+        var window = new SetPushTargetWindow { DataContext = dialog };
+        await window.ShowDialog(Host);
+        if (!dialog.Confirmed || (dialog.SelectedRemote is null && !dialog.ClearTarget))
+            return;
+
+        if (dialog.ClearTarget)
+        {
+            if (string.IsNullOrWhiteSpace(branch.Upstream))
+            {
+                StatusMessage = $"{branch.Name} has no push target.";
+                return;
+            }
+
+            _pendingStatus = $"Cleared the push target for {branch.Name}.";
+            await MutateAsync(r => r.UnsetUpstreamAsync(branch.Name));
+            return;
+        }
+
+        var remote = dialog.SelectedRemote!.Remote;
+        var remoteBranch = dialog.RemoteBranch.Trim();
+        _pendingStatus = $"Push target for {branch.Name} is {remote.Name}/{remoteBranch}.";
+        await MutateAsync(r => r.SetUpstreamAsync(branch.Name, remote.Name, remoteBranch));
     }
 
     [RelayCommand]
@@ -1795,7 +1875,12 @@ public partial class MainViewModel : ViewModelBase
         else if (snapshot.Sync.IsInSync)
             parts.Add("in sync");
         else if (!snapshot.Sync.HasUpstream && !snapshot.IsDetached)
-            parts.Add("no upstream");
+        {
+            var current = snapshot.Branches.FirstOrDefault(b => b.IsCurrent && !b.IsRemote);
+            parts.Add(string.IsNullOrWhiteSpace(current?.Upstream)
+                ? "no upstream"
+                : $"pushes to {current.Upstream}");
+        }
         var conflicts = snapshot.Changes.Count(c => c.IsConflict);
         if (conflicts > 0)
             parts.Add($"{conflicts} conflicts");

@@ -954,6 +954,83 @@ public class GitCliRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task RenameKeepsThePushTargetAndPushUsesIt()
+    {
+        var bare = CreateBareRepo();
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "one\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("first");
+            Run(root, "remote", "add", "origin", bare);
+
+            await repo.SetUpstreamAsync("main", "origin", "published");
+            var targeted = await repo.RefreshAsync();
+            var main = targeted.Branches.Single(b => !b.IsRemote && b.Name == "main");
+            Assert.Equal("origin/published", main.Upstream);
+            Assert.Equal("origin/published", main.PushTargetLabel);
+
+            await repo.RenameBranchAsync("main", "local-main");
+            var renamed = await repo.RefreshAsync();
+            Assert.Equal("local-main", renamed.CurrentBranch);
+            var moved = renamed.Branches.Single(b => !b.IsRemote && b.Name == "local-main");
+            Assert.Equal("origin/published", moved.Upstream);
+            Assert.True(moved.IsCurrent);
+            Assert.DoesNotContain(renamed.Branches, b => !b.IsRemote && b.Name == "main");
+
+            await repo.PushAsync();
+            Assert.True(RefExists(bare, "refs/heads/published"));
+            Assert.False(RefExists(bare, "refs/heads/local-main"));
+            Assert.Equal(renamed.HeadSha, RunCapture(bare, "rev-parse", "refs/heads/published").Trim());
+
+            await repo.UnsetUpstreamAsync("local-main");
+            var cleared = await repo.RefreshAsync();
+            Assert.Null(cleared.Branches.Single(b => b.Name == "local-main" && !b.IsRemote).Upstream);
+
+            await repo.PushAsync();
+            Assert.True(RefExists(bare, "refs/heads/local-main"));
+        }
+        finally
+        {
+            TryDelete(root);
+            TryDelete(bare);
+        }
+    }
+
+    [Fact]
+    public async Task RenameAndUpstreamWorkForANestedBranchThatIsNotCheckedOut()
+    {
+        var root = CreateTempRepo();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "one\n");
+            using var repo = new GitCliRepository(root);
+            await repo.StageAsync(["a.txt"]);
+            await repo.CommitAsync("first");
+            Run(root, "remote", "add", "origin", "https://example.com/repo.git");
+            await repo.CreateBranchAsync("feature/foo");
+            await repo.CheckoutAsync("main");
+
+            await repo.RenameBranchAsync("feature/foo", "feature/bar");
+            await repo.SetUpstreamAsync("feature/bar", "origin", "teams/review");
+            var snap = await repo.RefreshAsync();
+
+            Assert.Equal("main", snap.CurrentBranch);
+            Assert.DoesNotContain(snap.Branches, b => !b.IsRemote && b.Name == "feature/foo");
+            var nested = snap.Branches.Single(b => !b.IsRemote && b.Name == "feature/bar");
+            Assert.Equal("origin/teams/review", nested.Upstream);
+            Assert.Equal("origin/teams/review", nested.PushTargetLabel);
+            await Assert.ThrowsAsync<ArgumentException>(() => repo.RenameBranchAsync("feature/bar", "bad name"));
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
     private static string CreateTempRepo()
     {
         var root = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N"));
@@ -963,6 +1040,32 @@ public class GitCliRepositoryTests
         Run(root, "config", "user.name", "GitTree Tests");
         Run(root, "config", "core.autocrlf", "false");
         return root;
+    }
+
+    private static string CreateBareRepo()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "gittree-tests", Guid.NewGuid().ToString("N") + ".git");
+        Directory.CreateDirectory(root);
+        Run(root, "init", "--bare");
+        return root;
+    }
+
+    private static bool RefExists(string dir, string gitRef)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("git")
+        {
+            WorkingDirectory = dir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        psi.ArgumentList.Add("show-ref");
+        psi.ArgumentList.Add("--verify");
+        psi.ArgumentList.Add("--quiet");
+        psi.ArgumentList.Add(gitRef);
+        using var proc = System.Diagnostics.Process.Start(psi)!;
+        proc.WaitForExit();
+        return proc.ExitCode == 0;
     }
 
     private static void Run(string dir, params string[] args) =>

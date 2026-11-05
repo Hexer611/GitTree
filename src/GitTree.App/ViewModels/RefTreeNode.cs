@@ -18,6 +18,11 @@ public sealed class RefTreeNode
     public bool IsStash => Stash is not null;
     public bool IsWorktree => Worktree is not null;
     public bool HasSyncBadge => Branch is { IsRemote: false } b && (b.Ahead > 0 || b.Behind > 0);
+    public bool HasDistinctPushTarget => !string.IsNullOrWhiteSpace(Branch?.PushTargetLabel);
+    public string PushTargetBadge =>
+        Branch?.PushTargetLabel is { Length: > 0 } label ? $"→ {label}" : "";
+    public string PushTargetTip =>
+        Branch?.PushTargetLabel is { Length: > 0 } label ? $"Pushes to {label}" : "";
     public string SyncBadge
     {
         get
