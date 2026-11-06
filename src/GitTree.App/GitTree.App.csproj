@@ -17,6 +17,16 @@
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'GitTree.App'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
   <ItemGroup>
     <AvaloniaResource Include="Assets\gittree.ico" />
     <AvaloniaResource Include="Assets\gittree.png" />
