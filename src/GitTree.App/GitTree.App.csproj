@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
-    <AssemblyName>gittree</AssemblyName>
+    <AssemblyName>GitTree</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
