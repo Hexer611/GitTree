@@ -182,7 +182,16 @@ public partial class MainWindow : Window
             vm.SetStagedSelection(list.SelectedItems?.OfType<FileChange>() ?? []);
     }
 
-    private void OnUnstagedContextRequested(object? sender, ContextRequestedEventArgs e)
+    private void OnUnstagedContextRequested(object? sender, ContextRequestedEventArgs e) =>
+        SelectFileListItem(sender, e);
+
+    private void OnStagedContextRequested(object? sender, ContextRequestedEventArgs e) =>
+        SelectFileListItem(sender, e);
+
+    private void OnCommitFilesContextRequested(object? sender, ContextRequestedEventArgs e) =>
+        SelectFileListItem(sender, e);
+
+    private static void SelectFileListItem(object? sender, ContextRequestedEventArgs e)
     {
         if (sender is not ListBox list)
             return;

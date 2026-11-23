@@ -565,6 +565,8 @@
                                              ContextRequested="OnUnstagedContextRequested">
                                         <ListBox.ContextMenu>
                                             <ContextMenu>
+                                                <MenuItem Header="Open file location" Command="{Binding OpenUnstagedFileLocationCommand}" />
+                                                <Separator />
                                                 <MenuItem Header="Discard" Command="{Binding DiscardCommand}" />
                                             </ContextMenu>
                                         </ListBox.ContextMenu>
@@ -617,7 +619,13 @@
                                              SelectedItem="{Binding SelectedStaged}"
                                              SelectionMode="Multiple"
                                              SelectionChanged="OnStagedSelectionChanged"
-                                             DoubleTapped="OnStagedDoubleTapped">
+                                             DoubleTapped="OnStagedDoubleTapped"
+                                             ContextRequested="OnStagedContextRequested">
+                                        <ListBox.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Open file location" Command="{Binding OpenStagedFileLocationCommand}" />
+                                            </ContextMenu>
+                                        </ListBox.ContextMenu>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="core:FileChange">
                                                 <Grid ColumnDefinitions="Auto,*" ClipToBounds="True">
@@ -669,7 +677,13 @@
                                         </Border>
                                     </Grid>
                                 </Border>
-                                <ListBox Classes="files" ItemsSource="{Binding CommitFiles}" SelectedItem="{Binding SelectedCommitFile}">
+                                <ListBox Classes="files" ItemsSource="{Binding CommitFiles}" SelectedItem="{Binding SelectedCommitFile}"
+                                         ContextRequested="OnCommitFilesContextRequested">
+                                    <ListBox.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Open file location" Command="{Binding OpenCommitFileLocationCommand}" />
+                                        </ContextMenu>
+                                    </ListBox.ContextMenu>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate x:DataType="core:FileChange">
                                             <Grid ColumnDefinitions="Auto,*" ClipToBounds="True">

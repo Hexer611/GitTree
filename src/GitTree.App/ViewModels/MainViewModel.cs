@@ -1895,6 +1895,15 @@ public partial class MainViewModel : ViewModelBase
     public void SetStagedSelection(IEnumerable<FileChange> files) =>
         _stagedSelection = files.Select(f => f.Path).Distinct().ToList();
 
+    [RelayCommand]
+    private void OpenUnstagedFileLocation() => OpenFileLocation(SelectedUnstaged);
+
+    [RelayCommand]
+    private void OpenStagedFileLocation() => OpenFileLocation(SelectedStaged);
+
+    [RelayCommand]
+    private void OpenCommitFileLocation() => OpenFileLocation(SelectedCommitFile);
+
     public void OpenWorkingFile(FileChange? file)
     {
         if (file is null || _repo is null)
@@ -1925,6 +1934,53 @@ public partial class MainViewModel : ViewModelBase
                 FileName = full,
                 UseShellExecute = true
             });
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+    }
+
+    private void OpenFileLocation(FileChange? file)
+    {
+        if (file is null || _repo is null)
+            return;
+
+        var full = Path.GetFullPath(Path.Combine(_repo.WorkingDirectory, file.Path.Replace('/', Path.DirectorySeparatorChar)));
+        var root = Path.GetFullPath(_repo.WorkingDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
+            ErrorMessage = "That path is outside the repository.";
+            return;
+        }
+
+        if (!File.Exists(full) && !Directory.Exists(full))
+        {
+            ErrorMessage = file.IndexStatus == FileChangeKind.Deleted || file.WorkTreeStatus == FileChangeKind.Deleted
+                ? $"'{file.Path}' was deleted and does not exist on disk."
+                : $"'{file.Path}' does not exist on disk.";
+            return;
+        }
+
+        try
+        {
+            var startInfo = OperatingSystem.IsWindows()
+                ? new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{full}\"",
+                    UseShellExecute = true
+                }
+                : new ProcessStartInfo
+                {
+                    FileName = Path.GetDirectoryName(full) ?? _repo.WorkingDirectory,
+                    UseShellExecute = true
+                };
+
+            Process.Start(startInfo)?.Dispose();
+            ErrorMessage = "";
         }
         catch (Exception ex)
         {
